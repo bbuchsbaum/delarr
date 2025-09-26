@@ -1,0 +1,25 @@
+Package: delarr
+Type: Package
+Title: Lazy Delayed Arrays with Fused Execution
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = "Ben", family = "Buchsbaum", role = c("aut", "cre"),
+           email = "ben@example.com")
+Description: Provides a lightweight delayed array abstraction with tidy-friendly
+    verbs, expression fusion, and pluggable storage backends.
+License: MIT + file LICENSE
+Depends: R (>= 4.1)
+Imports:
+    rlang
+Suggests:
+    matrixStats,
+    hdf5r,
+    testthat (>= 3.1.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Encoding: UTF-8
+LazyData: false
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2.9000

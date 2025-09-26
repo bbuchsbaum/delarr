@@ -1,0 +1,1601 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: R/**/*.R, R/**/*.r, *.Rmd, *.rmd, DESCRIPTION, tests/**/*.R, tests/**/*.r
+- Files matching patterns in .gitignore are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+R/
+  delarr-backends.R
+  delarr-core.R
+  delarr-eval.R
+  delarr-helpers.R
+  delarr-seed.R
+  delarr-verbs.R
+  delarr-writer-hdf5.R
+  generics.R
+  utils.R
+tests/
+  testthat/
+    test-core.R
+  testthat.R
+DESCRIPTION
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="R/delarr-backends.R">
+#' Wrap a custom backend as a delayed matrix
+#'
+#' Provides a convenience helper that turns a user-supplied slice function into
+#' a ready-to-use `delarr` object.
+#'
+#' @param nrow,ncol Dimensions of the logical matrix.
+#' @param pull Function of `rows` and `cols` returning a base matrix slice.
+#' @param chunk_hint Optional preferred chunking metadata.
+#' @param dimnames Optional dimnames to expose lazily.
+#' @param begin Optional function invoked before streaming.
+#' @param end Optional function invoked after streaming.
+#'
+#' @return A `delarr` backed by the provided pull function.
+#' @export
+delarr_backend <- function(nrow, ncol, pull, chunk_hint = NULL, dimnames = NULL,
+                          begin = NULL, end = NULL) {
+  seed <- delarr_seed(
+    nrow = nrow,
+    ncol = ncol,
+    pull = pull,
+    chunk_hint = chunk_hint,
+    dimnames = dimnames,
+    begin = begin,
+    end = end
+  )
+  delarr(seed)
+}
+
+#' Create a delayed matrix from an in-memory matrix
+#'
+#' @param x A numeric or logical matrix.
+#'
+#' @return A `delarr` referencing the original matrix.
+#' @export
+delarr_mem <- function(x) {
+  if (!is.matrix(x)) {
+    stop("x must be a matrix", call. = FALSE)
+  }
+  delarr(x)
+}
+
+#' Create a delayed matrix sourced from an HDF5 dataset
+#'
+#' Uses `hdf5r` to lazily read slices from disk on demand.
+#'
+#' @param path Path to the HDF5 file.
+#' @param dataset Name of the dataset within the file.
+#'
+#' @return A `delarr` that streams data from the HDF5 dataset.
+#' @export
+delarr_hdf5 <- function(path, dataset) {
+  if (!requireNamespace("hdf5r", quietly = TRUE)) {
+    stop("Package 'hdf5r' is required for delarr_hdf5", call. = FALSE)
+  }
+  file <- hdf5r::H5File$new(path, mode = "r")
+  on.exit(file$close_all())
+  dset <- file[[dataset]]
+  dims <- dset$dims
+  chunk_dims <- tryCatch(dset$chunk_dims, error = function(e) NULL)
+
+  state <- new.env(parent = emptyenv())
+  state$file <- NULL
+  state$dset <- NULL
+
+  begin <- function() {
+    if (!is.null(state$file)) {
+      return(invisible(NULL))
+    }
+    state$file <- hdf5r::H5File$new(path, mode = "r")
+    state$dset <- state$file[[dataset]]
+    invisible(NULL)
+  }
+
+  end <- function() {
+    if (!is.null(state$file)) {
+      state$file$close_all()
+      state$file <- NULL
+      state$dset <- NULL
+    }
+    invisible(NULL)
+  }
+
+  pull <- function(rows = NULL, cols = NULL) {
+    rows <- rows %||% seq_len(dims[1])
+    cols <- cols %||% seq_len(dims[2])
+    if (!is.null(state$dset)) {
+      return(state$dset[rows, cols, drop = FALSE])
+    }
+    file <- hdf5r::H5File$new(path, mode = "r")
+    on.exit(file$close_all())
+    dset <- file[[dataset]]
+    dset[rows, cols, drop = FALSE]
+  }
+
+  chunk_hint <- NULL
+  if (!is.null(chunk_dims) && length(chunk_dims) >= 2L) {
+    chunk_hint <- list(cols = as.integer(chunk_dims[[2L]]))
+  }
+
+  delarr_backend(
+    nrow = dims[1],
+    ncol = dims[2],
+    pull = pull,
+    chunk_hint = chunk_hint,
+    begin = begin,
+    end = end
+  )
+}
+
+#' Placeholder for a memory-mapped backend
+#'
+#' The mmap helper is not yet implemented; users can supply their own backend
+#' via `delarr_backend()` in the meantime.
+#'
+#' @inheritParams delarr_backend
+#' @param ... Reserved for future options.
+#'
+#' @return No return value; the function always errors.
+#' @export
+delarr_mmap <- function(...) {
+  stop("delarr_mmap() is not implemented yet. Use delarr_backend() with a custom pull function.", call. = FALSE)
+}
+</file>
+
+<file path="R/delarr-core.R">
+#' Create a delayed matrix
+#'
+#' Wraps an existing matrix or `delarr_seed` in the lightweight delayed
+#' pipeline. Matrix inputs are wrapped in a seed that simply slices the source
+#' object, while `delarr` inputs are returned unchanged.
+#'
+#' @param x A base matrix or a `delarr_seed` to wrap.
+#' @param ... Future extensions; currently ignored.
+#'
+#' @return A `delarr` object representing the delayed matrix.
+#' @export
+delarr <- function(x, ...) {
+  if (inherits(x, "delarr")) {
+    return(x)
+  }
+  if (inherits(x, "delarr_seed")) {
+    return(new_delarr(seed = x, ops = list()))
+  }
+  if (is.matrix(x)) {
+    seed <- delarr_seed(
+      nrow = nrow(x),
+      ncol = ncol(x),
+      pull = function(rows = NULL, cols = NULL) {
+        rows <- rows %||% seq_len(nrow(x))
+        cols <- cols %||% seq_len(ncol(x))
+        x[rows, cols, drop = FALSE]
+      },
+      dimnames = dimnames(x)
+    )
+    return(new_delarr(seed = seed, ops = list()))
+  }
+  stop("Unsupported input for delarr()", call. = FALSE)
+}
+
+#' Internal constructor for `delarr`
+#'
+#' @param seed A `delarr_seed` backend.
+#' @param ops A list of deferred operations.
+#'
+#' @keywords internal
+new_delarr <- function(seed, ops = list()) {
+  structure(
+    list(
+      seed = seed,
+      ops = ops
+    ),
+    class = "delarr"
+  )
+}
+
+#' Subset a delayed matrix
+#'
+#' Performs matrix-style slicing lazily, capturing the indices in the DAG.
+#'
+#' @param x A `delarr`.
+#' @param i Row indices or `NULL`.
+#' @param j Column indices or `NULL`.
+#' @param drop Logical indicating whether to drop dimensions (ignored lazily).
+#'
+#' @return A `delarr` containing the slice operation.
+#' @export
+`[.delarr` <- function(x, i, j, drop = FALSE) {
+  op <- list(
+    op = "slice",
+    rows = if (missing(i)) NULL else i,
+    cols = if (missing(j)) NULL else j,
+    drop = drop
+  )
+  add_op(x, op)
+}
+
+#' Dimensions of a delayed matrix
+#'
+#' Computes the realised dimensions after taking queued slice and reduce
+#' operations into account.
+#'
+#' @param x A `delarr`.
+#'
+#' @return An integer vector of length two.
+#' @export
+dim.delarr <- function(x) {
+  dims <- c(x$seed$nrow, x$seed$ncol)
+  for (op in x$ops) {
+    if (op$op == "slice") {
+      if (!is.null(op$rows)) {
+        dims[1] <- length(op$rows)
+      }
+      if (!is.null(op$cols)) {
+        dims[2] <- length(op$cols)
+      }
+    }
+    if (op$op == "reduce") {
+      if (identical(op$dim, "rows")) {
+        dims <- c(1L, dims[2])
+      } else {
+        dims <- c(dims[1], 1L)
+      }
+    }
+  }
+  dims
+}
+
+#' Dimension names for a delayed matrix
+#'
+#' @param x A `delarr`.
+#'
+#' @return A list of row and column names or `NULL` placeholders.
+dimnames.delarr <- function(x) {
+  x$seed$dimnames %||% list(NULL, NULL)
+}
+
+#' Pretty-print a delayed matrix
+#'
+#' @param x A `delarr`.
+#' @param ... Unused.
+#'
+#' @return The original object, invisibly.
+#' @export
+print.delarr <- function(x, ...) {
+  d <- dim(x)
+  if (length(x$ops)) {
+    labels <- vapply(x$ops, describe_op, character(1))
+    labels <- labels[labels != ""]
+    if (length(labels)) {
+      cat("<delarr> ", d[1], " x ", d[2], " • ops: ", paste(labels, collapse = " -> "), "\n", sep = "")
+      return(invisible(x))
+    }
+  }
+  cat("<delarr> ", d[1], " x ", d[2], " lazy\n", sep = "")
+  invisible(x)
+}
+
+describe_op <- function(op) {
+  switch(op$op,
+    slice = "slice",
+    emap = "map",
+    emap2 = "map2",
+    emap_const = "map_const",
+    center = paste0("center(", op$dim, ")"),
+    scale = paste0("scale(", op$dim, ")"),
+    zscore = paste0("zscore(", op$dim, ")"),
+    detrend = paste0("detrend(", op$dim, ")"),
+    reduce = paste0("reduce(", op$dim, ")"),
+    where = "where",
+    ""
+  )
+}
+
+#' Materialise a delayed matrix as a base matrix
+#'
+#' @param x A `delarr`.
+#' @param ... Passed to `collect()`.
+#'
+#' @return A base matrix containing the realised data.
+#' @export
+as.matrix.delarr <- function(x, ...) {
+  collect(x)
+}
+
+#' Arithmetic and comparison operators for `delarr`
+#'
+#' Supports elementwise operations between delayed matrices or between a
+#' delayed matrix and scalars/matrices.
+#'
+#' @param e1,e2 Operands supplied by the R math group generics.
+#'
+#' @return A `delarr` representing the fused operation.
+#' @export
+Ops.delarr <- function(e1, e2) {
+  op <- .Generic
+  if (inherits(e1, "delarr") && inherits(e2, "delarr")) {
+    return(add_op(e1, list(op = "emap2", rhs = e2, fn = function(a, b) do.call(op, list(a, b)))))
+  }
+  if (inherits(e1, "delarr")) {
+    return(add_op(e1, list(op = "emap_const", const = e2, side = "right", fn = function(a, b) do.call(op, list(a, b)))))
+  }
+  if (inherits(e2, "delarr")) {
+    return(add_op(e2, list(op = "emap_const", const = e1, side = "left", fn = function(a, b) do.call(op, list(a, b)))))
+  }
+  stop("Operation not supported", call. = FALSE)
+}
+
+add_op <- function(x, op) {
+  stopifnot(inherits(x, "delarr"))
+  new_delarr(x$seed, append(x$ops, list(op)))
+}
+</file>
+
+<file path="R/delarr-eval.R">
+compile_plan <- function(x) {
+  stopifnot(inherits(x, "delarr"))
+  current_rows <- seq_len(x$seed$nrow)
+  current_cols <- seq_len(x$seed$ncol)
+  ops <- list()
+  reduce_op <- NULL
+  rhs_indices <- integer()
+  for (op in x$ops) {
+    if (identical(op$op, "slice")) {
+      if (!is.null(op$rows)) {
+        current_rows <- current_rows[normalize_index(op$rows, length(current_rows))]
+      }
+      if (!is.null(op$cols)) {
+        current_cols <- current_cols[normalize_index(op$cols, length(current_cols))]
+      }
+      next
+    }
+    if (identical(op$op, "reduce")) {
+      if (!is.null(reduce_op)) {
+        stop("Only one reduce() is supported in a pipeline", call. = FALSE)
+      }
+      reduce_op <- op
+      next
+    }
+    if (identical(op$op, "emap2") && inherits(op$rhs, "delarr")) {
+      rhs_indices <- c(rhs_indices, length(ops) + 1L)
+    }
+    ops <- append(ops, list(op))
+  }
+list(
+    rows = current_rows,
+    cols = current_cols,
+    ops = ops,
+    reduce = reduce_op,
+    rhs_indices = rhs_indices,
+    pair_rhs = length(rhs_indices) > 0
+  )
+}
+
+requires_full_eval <- function(ops) {
+  any(vapply(ops, function(op) {
+    op$op %in% c("center", "scale", "zscore") && identical(op$dim, "rows")
+  }, logical(1)))
+}
+
+broadcast_rhs <- function(lhs, rhs) {
+  if (is.null(rhs)) {
+    stop("Binary operation requires a RHS", call. = FALSE)
+  }
+  if (length(rhs) == 1L && is.atomic(rhs)) {
+    return(rhs)
+  }
+  if (is.matrix(rhs)) {
+    if (!all(dim(rhs) == dim(lhs))) {
+      stop("Non-conformable RHS for binary op", call. = FALSE)
+    }
+    return(rhs)
+  }
+  if (is.atomic(rhs)) {
+    len <- length(rhs)
+    nr <- nrow(lhs)
+    nc <- ncol(lhs)
+    if (len == nr) {
+      return(matrix(rhs, nr, nc))
+    }
+    if (len == nc) {
+      return(matrix(rhs, nr, nc, byrow = TRUE))
+    }
+  }
+  stop("Non-conformable RHS for binary operation", call. = FALSE)
+}
+
+apply_ops <- function(mat, ops, rhs_chunks = NULL) {
+  if (!length(ops)) {
+    return(mat)
+  }
+  for (i in seq_along(ops)) {
+    op <- ops[[i]]
+    mat <- switch(op$op,
+      emap = {
+        res <- op$fn(mat)
+        if (!is.matrix(res)) {
+          stop("d_map functions must return a matrix", call. = FALSE)
+        }
+        res
+      },
+      emap_const = {
+        const <- broadcast_rhs(mat, op$const)
+        if (identical(op$side, "right")) op$fn(mat, const) else op$fn(const, mat)
+      },
+      emap2 = {
+        rhs <- op$rhs
+        if (inherits(rhs, "delarr")) {
+          if (!is.null(rhs_chunks) && !is.null(rhs_chunks[[i]])) {
+            rhs <- rhs_chunks[[i]]
+          } else {
+            rhs <- collect(rhs)
+          }
+        }
+        rhs <- broadcast_rhs(mat, rhs)
+        op$fn(mat, rhs)
+      },
+      center = safe_center(mat, op$dim, op$na_rm %||% FALSE),
+      scale = safe_scale_matrix(mat, op$dim, center = op$center, scale = op$scale, na.rm = op$na_rm %||% FALSE),
+      zscore = safe_scale_matrix(mat, op$dim, center = TRUE, scale = TRUE, na.rm = op$na_rm %||% FALSE),
+      detrend = detrend_matrix(mat, op$dim, op$degree),
+      where = where_mask(mat, op$predicate, op$fill),
+      stop(sprintf("Unknown op '%s'", op$op), call. = FALSE)
+    )
+  }
+  mat
+}
+
+apply_reduce_full <- function(mat, reduce_op) {
+  if (is.null(reduce_op)) {
+    return(mat)
+  }
+  margin <- if (identical(reduce_op$dim, "rows")) 1L else 2L
+  fn <- reduce_op$fn
+  na_rm <- reduce_op$na_rm %||% FALSE
+  if (identical(fn, base::sum)) {
+    return(apply(mat, margin, sum, na.rm = na_rm))
+  }
+  if (identical(fn, base::mean)) {
+    return(apply(mat, margin, mean, na.rm = na_rm))
+  }
+  if (identical(fn, base::min)) {
+    return(apply(mat, margin, min, na.rm = na_rm))
+  }
+  if (identical(fn, base::max)) {
+    return(apply(mat, margin, max, na.rm = na_rm))
+  }
+  formals_fn <- tryCatch(names(formals(fn)), error = function(e) character())
+  if (na_rm && "na.rm" %in% formals_fn) {
+    return(apply(mat, margin, function(x) fn(x, na.rm = na_rm)))
+  }
+  apply(mat, margin, fn)
+}
+
+classify_reduce <- function(reduce_op) {
+  if (is.null(reduce_op)) {
+    return(NULL)
+  }
+  fn <- reduce_op$fn
+  dim <- reduce_op$dim
+  type <- if (identical(fn, base::sum)) {
+    "sum"
+  } else if (identical(fn, base::mean)) {
+    "mean"
+  } else if (identical(fn, base::min)) {
+    "min"
+  } else if (identical(fn, base::max)) {
+    "max"
+  } else {
+    "generic"
+  }
+  list(type = type, dim = dim, op = reduce_op, na.rm = reduce_op$na_rm %||% FALSE)
+}
+
+infer_chunk_size <- function(seed, requested_cols, chunk_size) {
+  if (!is.null(chunk_size) && chunk_size > 0L) {
+    return(as.integer(chunk_size))
+  }
+  hint <- seed$chunk_hint
+  if (is.list(hint) && !is.null(hint$cols)) {
+    size <- as.integer(hint$cols)
+    if (!is.na(size) && size > 0L) {
+      return(min(size, requested_cols))
+    }
+  }
+  default <- 16384L
+  as.integer(min(default, requested_cols))
+}
+
+collect <- function(x, into = NULL, chunk_size = NULL) {
+  seed <- x$seed
+  if (is.function(seed$begin)) seed$begin()
+  on.exit({
+    if (is.function(seed$end)) seed$end()
+  }, add = TRUE)
+
+  plan <- compile_plan(x)
+  rows <- plan$rows %||% seq_len(seed$nrow)
+  cols <- plan$cols %||% seq_len(seed$ncol)
+  n_rows <- length(rows)
+  n_cols <- length(cols)
+
+  if (requires_full_eval(plan$ops)) {
+    mat <- pull_seed(seed, rows = rows, cols = cols)
+    rhs_chunks <- NULL
+    if (length(plan$rhs_indices)) {
+      rhs_chunks <- vector("list", length(plan$ops))
+      for (idx in plan$rhs_indices) {
+        rhs_obj <- plan$ops[[idx]]$rhs
+        rhs_plan <- compile_plan(rhs_obj)
+        rhs_seed <- rhs_obj$seed
+        rhs_rows <- rhs_plan$rows %||% seq_len(rhs_seed$nrow)
+        rhs_cols <- rhs_plan$cols %||% seq_len(rhs_seed$ncol)
+        rhs_mat <- pull_seed(rhs_seed, rows = rhs_rows, cols = rhs_cols)
+        rhs_mat <- apply_ops(rhs_mat, rhs_plan$ops)
+        rhs_chunks[[idx]] <- rhs_mat
+      }
+    }
+    mat <- apply_ops(mat, plan$ops, rhs_chunks)
+    res <- apply_reduce_full(mat, plan$reduce)
+    return(handle_collect_output(res, into))
+  }
+
+  rhs_ctx <- NULL
+  if (plan$pair_rhs) {
+    rhs_idx <- plan$rhs_indices[1]
+    rhs_obj <- plan$ops[[rhs_idx]]$rhs
+    rhs_plan <- compile_plan(rhs_obj)
+    rhs_seed <- rhs_obj$seed
+    rhs_rows <- rhs_plan$rows %||% seq_len(rhs_seed$nrow)
+    rhs_cols <- rhs_plan$cols %||% seq_len(rhs_seed$ncol)
+    if (length(rhs_rows) == n_rows && length(rhs_cols) == n_cols) {
+      if (is.function(rhs_seed$begin)) rhs_seed$begin()
+      on.exit({
+        if (is.function(rhs_seed$end)) rhs_seed$end()
+      }, add = TRUE)
+      matched <- plan$rhs_indices[vapply(plan$ops[plan$rhs_indices], function(op) {
+        inherits(op$rhs, "delarr") && identical(op$rhs, rhs_obj)
+      }, logical(1))]
+      rhs_ctx <- list(
+        seed = rhs_seed,
+        plan = rhs_plan,
+        rows = rhs_rows,
+        cols = rhs_cols,
+        indices = matched
+      )
+    }
+  }
+
+  rhs_chunks_for <- function(pos) {
+    if (is.null(rhs_ctx)) {
+      return(NULL)
+    }
+    rhs_cols <- rhs_ctx$cols[pos]
+    rhs_block <- pull_seed(rhs_ctx$seed, rows = rhs_ctx$rows, cols = rhs_cols)
+    rhs_block <- apply_ops(rhs_block, rhs_ctx$plan$ops)
+    chunks <- vector("list", length(plan$ops))
+    for (idx in rhs_ctx$indices) {
+      chunks[[idx]] <- rhs_block
+    }
+    chunks
+  }
+
+  reduce_info <- classify_reduce(plan$reduce)
+  if (!is.null(reduce_info) && identical(reduce_info$type, "generic")) {
+    block <- pull_seed(seed, rows = rows, cols = cols)
+    rhs_chunks <- rhs_chunks_for(seq_len(n_cols))
+    block <- apply_ops(block, plan$ops, rhs_chunks)
+    res <- apply_reduce_full(block, plan$reduce)
+    return(handle_collect_output(res, into))
+  }
+
+  chunk_size <- infer_chunk_size(seed, n_cols, chunk_size)
+  chunks <- seq_chunk(n_cols, chunk_size)
+
+  if (is.null(reduce_info)) {
+    result <- NULL
+    for (pos in chunks) {
+      pull_cols <- cols[pos]
+      block <- pull_seed(seed, rows = rows, cols = pull_cols)
+      rhs_chunks <- rhs_chunks_for(pos)
+      block <- apply_ops(block, plan$ops, rhs_chunks)
+      if (is.null(into)) {
+        if (is.null(result)) {
+          result <- matrix(vector(mode = typeof(block), length = n_rows * n_cols), nrow = n_rows, ncol = n_cols)
+        }
+        result[, pos] <- block
+      } else {
+        assign_chunk(into, block, rows = rows, cols = pull_cols, positions = pos)
+      }
+    }
+    if (is.null(into)) {
+      return(result)
+    }
+    finalize_target(into)
+    return(invisible(NULL))
+  }
+
+  type <- reduce_info$type
+  na_rm <- reduce_info$na.rm
+
+  if (identical(reduce_info$dim, "rows")) {
+    if (type %in% c("sum", "mean")) {
+      acc <- numeric(n_rows)
+      counts <- if (na_rm || identical(type, "mean")) numeric(n_rows) else NULL
+    } else {
+      acc <- NULL
+      counts <- if (na_rm) numeric(n_rows) else NULL
+    }
+    for (pos in chunks) {
+      pull_cols <- cols[pos]
+      block <- pull_seed(seed, rows = rows, cols = pull_cols)
+      rhs_chunks <- rhs_chunks_for(pos)
+      block <- apply_ops(block, plan$ops, rhs_chunks)
+      if (type %in% c("sum", "mean")) {
+        partial <- rowSums(block, na.rm = na_rm)
+        acc <- acc + partial
+        if (!is.null(counts)) {
+          counts <- counts + rowSums(!is.na(block))
+        }
+      } else if (identical(type, "min")) {
+        partial <- apply(block, 1L, min, na.rm = na_rm)
+        if (is.null(acc)) {
+          acc <- partial
+        } else {
+          acc <- pmin(acc, partial, na.rm = na_rm)
+        }
+        if (!is.null(counts)) {
+          counts <- counts + rowSums(!is.na(block))
+        }
+      } else if (identical(type, "max")) {
+        partial <- apply(block, 1L, max, na.rm = na_rm)
+        if (is.null(acc)) {
+          acc <- partial
+        } else {
+          acc <- pmax(acc, partial, na.rm = na_rm)
+        }
+        if (!is.null(counts)) {
+          counts <- counts + rowSums(!is.na(block))
+        }
+      }
+    }
+    if (identical(type, "sum")) {
+      if (!is.null(counts) && na_rm) {
+        acc[counts == 0] <- NA_real_
+      }
+      return(handle_collect_output(acc, into))
+    }
+    if (identical(type, "mean")) {
+      if (!is.null(counts) && na_rm) {
+        acc[counts == 0] <- NA_real_
+        idx <- counts > 0
+        acc[idx] <- acc[idx] / counts[idx]
+      } else {
+        acc <- acc / n_cols
+      }
+      return(handle_collect_output(acc, into))
+    }
+    if (!is.null(counts) && na_rm) {
+      acc[counts == 0] <- NA_real_
+    }
+    return(handle_collect_output(acc, into))
+  }
+
+  # column reductions
+  if (type %in% c("sum", "mean")) {
+    acc <- numeric(n_cols)
+    counts <- if (na_rm || identical(type, "mean")) numeric(n_cols) else NULL
+  } else {
+    acc <- rep(NA_real_, n_cols)
+    counts <- if (na_rm) numeric(n_cols) else NULL
+  }
+  for (pos in chunks) {
+    pull_cols <- cols[pos]
+    block <- pull_seed(seed, rows = rows, cols = pull_cols)
+    rhs_chunks <- rhs_chunks_for(pos)
+    block <- apply_ops(block, plan$ops, rhs_chunks)
+    if (type %in% c("sum", "mean")) {
+      partial <- colSums(block, na.rm = na_rm)
+      acc[pos] <- acc[pos] + partial
+      if (!is.null(counts)) {
+        counts[pos] <- counts[pos] + colSums(!is.na(block))
+      }
+    } else if (identical(type, "min")) {
+      partial <- apply(block, 2L, min, na.rm = na_rm)
+      missing <- is.na(acc[pos])
+      if (any(missing)) {
+        acc[pos][missing] <- partial[missing]
+      }
+      if (any(!missing)) {
+        acc[pos][!missing] <- pmin(acc[pos][!missing], partial[!missing], na.rm = na_rm)
+      }
+      if (!is.null(counts)) {
+        counts[pos] <- counts[pos] + colSums(!is.na(block))
+      }
+    } else if (identical(type, "max")) {
+      partial <- apply(block, 2L, max, na.rm = na_rm)
+      missing <- is.na(acc[pos])
+      if (any(missing)) {
+        acc[pos][missing] <- partial[missing]
+      }
+      if (any(!missing)) {
+        acc[pos][!missing] <- pmax(acc[pos][!missing], partial[!missing], na.rm = na_rm)
+      }
+      if (!is.null(counts)) {
+        counts[pos] <- counts[pos] + colSums(!is.na(block))
+      }
+    }
+  }
+  if (identical(type, "sum") && na_rm && !is.null(counts)) {
+    acc[counts == 0] <- NA_real_
+  }
+  if (identical(type, "mean")) {
+    if (!is.null(counts) && na_rm) {
+      acc[counts == 0] <- NA_real_
+      idx <- counts > 0
+      acc[idx] <- acc[idx] / counts[idx]
+    } else {
+      acc <- acc / n_rows
+    }
+  }
+  if (type %in% c("min", "max") && !is.null(counts) && na_rm) {
+    acc[counts == 0] <- NA_real_
+  }
+  handle_collect_output(acc, into)
+}
+
+assign_chunk <- function(target, block, rows, cols, positions) {
+  if (is.function(target)) {
+    target(block, rows = rows, cols = cols, positions = positions)
+    return(invisible(NULL))
+  }
+  if (is.list(target) && is.function(target$write)) {
+    target$write(block, rows = rows, cols = cols, positions = positions)
+    return(invisible(NULL))
+  }
+  stop("Unsupported 'into' target", call. = FALSE)
+}
+
+handle_collect_output <- function(result, into) {
+  if (is.null(into)) {
+    return(result)
+  }
+  if (is.function(into)) {
+    into(result)
+    return(invisible(NULL))
+  }
+  if (is.list(into) && is.function(into$write)) {
+    into$write(result)
+    finalize_target(into)
+    return(invisible(NULL))
+  }
+  stop("Unsupported 'into' target", call. = FALSE)
+}
+
+finalize_target <- function(target) {
+  if (is.list(target) && is.function(target$finalize)) {
+    target$finalize()
+  }
+  invisible(NULL)
+}
+
+block_apply <- function(x, margin = c("cols", "rows"), size = 16384L, fn) {
+  margin <- match.arg(margin)
+  if (!is.function(fn)) {
+    stop("fn must be a function", call. = FALSE)
+  }
+  dims <- dim(x)
+  total <- if (margin == "cols") dims[2] else dims[1]
+  chunks <- seq_chunk(total, size)
+  out <- vector("list", length(chunks))
+  for (i in seq_along(chunks)) {
+    indices <- chunks[[i]]
+    slice_arr <- if (margin == "cols") {
+      x[, indices, drop = FALSE]
+    } else {
+      x[indices, , drop = FALSE]
+    }
+    block <- collect(slice_arr, chunk_size = size)
+    out[[i]] <- fn(block)
+  }
+  out
+}
+</file>
+
+<file path="R/delarr-helpers.R">
+detrend_matrix <- function(mat, dim, degree) {
+  if (degree < 1L) {
+    stop("degree must be >= 1", call. = FALSE)
+  }
+  if (identical(dim, "rows")) {
+    x <- seq_len(ncol(mat))
+    design <- stats::poly(x, degree, raw = TRUE)
+    design <- cbind(1, design)
+    res <- t(apply(mat, 1L, function(y) {
+      fit <- stats::lm.fit(design, y)
+      y - as.vector(design %*% fit$coefficients)
+    }))
+    return(res)
+  }
+  x <- seq_len(nrow(mat))
+  design <- stats::poly(x, degree, raw = TRUE)
+  design <- cbind(1, design)
+  apply(mat, 2L, function(y) {
+    fit <- stats::lm.fit(design, y)
+    y - as.vector(design %*% fit$coefficients)
+  })
+}
+
+where_mask <- function(mat, predicate, fill) {
+  mask <- predicate(mat)
+  if (!is.logical(mask)) {
+    mask <- as.logical(mask)
+  }
+  if (!all(dim(mask) == dim(mat))) {
+    mask <- matrix(mask, nrow = nrow(mat), ncol = ncol(mat))
+  }
+  if (length(fill) != 1L) {
+    stop("fill must be a scalar value", call. = FALSE)
+  }
+  mat[!mask] <- fill
+  mat
+}
+</file>
+
+<file path="R/delarr-seed.R">
+#' Construct a seed backend for `delarr`
+#'
+#' Seeds encapsulate storage access for delayed matrices. They define matrix
+#' dimensions and a `pull()` function that returns materialised slices.
+#'
+#' @param nrow,ncol Number of rows and columns.
+#' @param pull A function accepting `rows` and `cols` indices and returning a
+#'   base matrix slice.
+#' @param chunk_hint Optional list describing preferred chunk sizes
+#'   (e.g. `list(cols = 4096L)`).
+#' @param dimnames Optional list of dimnames to expose lazily.
+#' @param begin Optional function invoked before streaming begins.
+#' @param end Optional function invoked after streaming completes.
+#'
+#' @return An object of class `delarr_seed`.
+#' @export
+delarr_seed <- function(nrow, ncol, pull, chunk_hint = NULL, dimnames = NULL,
+                        begin = NULL, end = NULL) {
+  if (!is.numeric(nrow) || length(nrow) != 1L || nrow < 0) {
+    stop("nrow must be a single non-negative number", call. = FALSE)
+  }
+  if (!is.numeric(ncol) || length(ncol) != 1L || ncol < 0) {
+    stop("ncol must be a single non-negative number", call. = FALSE)
+  }
+  if (!is.function(pull)) {
+    stop("pull must be a function", call. = FALSE)
+  }
+  structure(
+    list(
+      nrow = as.integer(nrow),
+      ncol = as.integer(ncol),
+      pull = pull,
+      chunk_hint = chunk_hint,
+      dimnames = dimnames,
+      begin = begin,
+      end = end
+    ),
+    class = "delarr_seed"
+  )
+}
+
+#' Dimensions for a `delarr_seed`
+#'
+#' @param x A `delarr_seed`.
+#'
+#' @return A two-element integer vector.
+dim.delarr_seed <- function(x) {
+  c(x$nrow, x$ncol)
+}
+
+pull_seed <- function(seed, rows = NULL, cols = NULL) {
+  rows <- if (!is.null(rows)) as.integer(rows) else rows
+  cols <- if (!is.null(cols)) as.integer(cols) else cols
+  res <- seed$pull(rows = rows, cols = cols)
+  if (!is.matrix(res)) {
+    stop("Seed pull must return a matrix", call. = FALSE)
+  }
+  res
+}
+</file>
+
+<file path="R/delarr-verbs.R">
+#' Apply an elementwise transformation lazily
+#'
+#' @param x A `delarr`.
+#' @param f A function or formula suitable for `rlang::as_function()`.
+#'
+#' @return A `delarr` representing the transformation.
+#' @export
+d_map <- function(x, f) {
+  stopifnot(inherits(x, "delarr"))
+  fn <- rlang::as_function(f)
+  add_op(x, list(op = "emap", fn = fn))
+}
+
+#' Apply a binary elementwise transformation lazily
+#'
+#' @param x A `delarr`.
+#' @param y Another `delarr`, matrix, or numeric vector/scalar.
+#' @param f A function or formula combining two arguments.
+#'
+#' @return A `delarr` representing the fused binary operation.
+#' @export
+d_map2 <- function(x, y, f) {
+  stopifnot(inherits(x, "delarr"))
+  fn <- rlang::as_function(f)
+  if (!(inherits(y, "delarr") || is.numeric(y) || is.matrix(y))) {
+    stop("y must be a delarr or numeric", call. = FALSE)
+  }
+  add_op(x, list(op = "emap2", rhs = y, fn = fn))
+}
+
+#' Reduce along rows or columns lazily
+#'
+#' @param x A `delarr`.
+#' @param f A reduction function (defaults to `sum`).
+#' @param dim Dimension to reduce, either "rows" or "cols".
+#' @param na.rm Logical; remove missing values while reducing.
+#'
+#' @return A `delarr` capturing the reduction.
+#' @export
+d_reduce <- function(x, f = base::sum, dim = c("rows", "cols"), na.rm = FALSE) {
+  stopifnot(inherits(x, "delarr"))
+  dim <- match.arg(dim)
+  fn <- match.fun(f)
+  add_op(x, list(op = "reduce", fn = fn, dim = dim, na_rm = isTRUE(na.rm)))
+}
+
+#' Center a delayed matrix along rows or columns
+#'
+#' @param x A `delarr`.
+#' @param dim Dimension along which to subtract the mean.
+#' @param na.rm Logical; remove missing values when computing the centre.
+#'
+#' @return A `delarr` with a deferred centering operation.
+#' @export
+d_center <- function(x, dim = c("rows", "cols"), na.rm = FALSE) {
+  stopifnot(inherits(x, "delarr"))
+  dim <- match.arg(dim)
+  add_op(x, list(op = "center", dim = dim, na_rm = isTRUE(na.rm)))
+}
+
+#' Scale a delayed matrix along rows or columns
+#'
+#' @param x A `delarr`.
+#' @param dim Dimension to scale.
+#' @param center Logical; subtract the mean before scaling.
+#' @param scale Logical; divide by the standard deviation.
+#' @param na.rm Logical; remove missing values when computing statistics.
+#'
+#' @return A `delarr` with a deferred scaling operation.
+#' @export
+d_scale <- function(x, dim = c("rows", "cols"), center = TRUE, scale = TRUE,
+                    na.rm = FALSE) {
+  stopifnot(inherits(x, "delarr"))
+  dim <- match.arg(dim)
+  add_op(x, list(
+    op = "scale",
+    dim = dim,
+    center = center,
+    scale = scale,
+    na_rm = isTRUE(na.rm)
+  ))
+}
+
+#' Z-score a delayed matrix
+#'
+#' Equivalent to centering and scaling with unit variance.
+#'
+#' @param x A `delarr`.
+#' @param dim Dimension over which to compute the z-score.
+#' @param na.rm Logical; remove missing values when computing statistics.
+#'
+#' @return A `delarr` with the z-score applied lazily.
+#' @export
+d_zscore <- function(x, dim = c("rows", "cols"), na.rm = FALSE) {
+  stopifnot(inherits(x, "delarr"))
+  dim <- match.arg(dim)
+  add_op(x, list(op = "zscore", dim = dim, na_rm = isTRUE(na.rm)))
+}
+
+#' Detrend a delayed matrix
+#'
+#' Removes a polynomial trend of the specified degree along the chosen
+#' dimension.
+#'
+#' @param x A `delarr`.
+#' @param dim Dimension along which to fit the trend.
+#' @param degree Polynomial degree (default 1).
+#'
+#' @return A `delarr` with the detrend operation queued.
+#' @export
+d_detrend <- function(x, dim = c("rows", "cols"), degree = 1L) {
+  stopifnot(inherits(x, "delarr"))
+  dim <- match.arg(dim)
+  add_op(x, list(op = "detrend", dim = dim, degree = as.integer(degree)))
+}
+
+#' Apply a boolean mask to a delayed matrix
+#'
+#' Elements failing the predicate are replaced with `fill` at materialisation
+#' time.
+#'
+#' @param x A `delarr`.
+#' @param predicate A function or formula returning a logical matrix.
+#' @param fill Replacement value for elements where the predicate is `FALSE`.
+#'
+#' @return A `delarr` including the mask.
+#' @export
+d_where <- function(x, predicate, fill = 0) {
+  stopifnot(inherits(x, "delarr"))
+  fn <- rlang::as_function(predicate)
+  add_op(x, list(op = "where", predicate = fn, fill = fill))
+}
+
+#' Row means for a delayed matrix
+#'
+#' Computes row means lazily via `d_reduce()`; acts as a drop-in replacement for
+#' `matrixStats::rowMeans2()`.
+#'
+#' @param x A `delarr` object.
+#' @param ... Unused.
+#' @param na.rm Logical; remove missing values before averaging.
+#'
+#' @return A numeric vector of row means.
+rowMeans2.delarr <- function(x, ..., na.rm = FALSE) {
+  res <- d_reduce(x, base::mean, dim = "rows", na.rm = na.rm)
+  collect(res)
+}
+
+#' Column means for a delayed matrix
+#'
+#' Computes column means lazily via `d_reduce()`; acts as a drop-in replacement
+#' for `matrixStats::colMeans2()`.
+#'
+#' @param x A `delarr` object.
+#' @param ... Unused.
+#' @param na.rm Logical; remove missing values before averaging.
+#'
+#' @return A numeric vector of column means.
+colMeans2.delarr <- function(x, ..., na.rm = FALSE) {
+  res <- d_reduce(x, base::mean, dim = "cols", na.rm = na.rm)
+  collect(res)
+}
+</file>
+
+<file path="R/delarr-writer-hdf5.R">
+#' HDF5 writer for streaming `collect()`
+#'
+#' Creates or extends an HDF5 dataset so that `collect(x, into = writer)` can
+#' stream column blocks directly to disk without materialising the full matrix
+#' in memory.
+#'
+#' @param path Path to the HDF5 file. The file is created if it does not exist.
+#' @param dataset Name of the dataset to create or update.
+#' @param ncol Total number of columns that will be written. The writer uses
+#'   this to size the target dataset up-front.
+#' @param chunk Integer vector of length two giving the chunk size
+#'   `(rows, cols)` for the target dataset (optional).
+#' @param compression Compression level passed to `hdf5r` (currently unused but
+#'   kept for forward compatibility).
+#'
+#' @return A writer object with `$write()` and `$finalize()` methods understood
+#'   by `collect()`.
+#' @export
+hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression = NULL) {
+  if (!requireNamespace("hdf5r", quietly = TRUE)) {
+    stop("Package 'hdf5r' is required for hdf5_writer()", call. = FALSE)
+  }
+  if (length(chunk) != 2L) {
+    stop("chunk must be a length-2 integer vector", call. = FALSE)
+  }
+  if (!is.numeric(ncol) || length(ncol) != 1L || ncol < 1) {
+    stop("ncol must be a positive integer", call. = FALSE)
+  }
+  if (length(chunk) != 2L) {
+    stop("chunk must be a length-2 integer vector", call. = FALSE)
+  }
+  env <- new.env(parent = emptyenv())
+  env$file <- NULL
+  env$dset <- NULL
+  env$nrow <- NULL
+  env$ncol <- as.integer(ncol)
+
+  open_file <- function(mode = "a") {
+    if (is.null(env$file)) {
+      env$file <- hdf5r::H5File$new(path, mode = mode)
+    }
+  }
+
+  ensure_dataset <- function(block, positions) {
+    if (!is.null(env$dset)) {
+      return(invisible(NULL))
+    }
+    env$nrow <- nrow(block)
+    open_file("a")
+    empty <- matrix(
+      vector(mode = typeof(block), length = env$nrow * env$ncol),
+      nrow = env$nrow,
+      ncol = env$ncol
+    )
+    env$dset <- env$file$create_dataset(
+      name = dataset,
+      robj = empty,
+      chunk = as.integer(chunk)
+    )
+  }
+
+  list(
+    write = function(block, rows, cols, positions) {
+      ensure_dataset(block, positions)
+      need_cols <- max(positions)
+      if (need_cols > env$ncol) {
+        stop("Attempting to write beyond declared ncol", call. = FALSE)
+      }
+      env$dset[seq_len(env$nrow), positions] <- block
+      invisible(NULL)
+    },
+    finalize = function() {
+      if (!is.null(env$file)) {
+        env$file$close_all()
+        env$file <- NULL
+        env$dset <- NULL
+      }
+      invisible(NULL)
+    }
+  )
+}
+</file>
+
+<file path="R/generics.R">
+rowMeans2 <- function(x, ...) {
+  UseMethod("rowMeans2")
+}
+
+colMeans2 <- function(x, ...) {
+  UseMethod("colMeans2")
+}
+</file>
+
+<file path="R/utils.R">
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
+}
+
+normalize_index <- function(idx, n) {
+  if (is.null(idx)) {
+    return(seq_len(n))
+  }
+  if (is.logical(idx)) {
+    if (length(idx) != n) {
+      stop("Logical index length must match dimension", call. = FALSE)
+    }
+    return(which(idx))
+  }
+  idx <- as.integer(idx)
+  if (any(is.na(idx))) {
+    stop("Index contains NA", call. = FALSE)
+  }
+  if (any(idx == 0L)) {
+    stop("Index cannot contain zero", call. = FALSE)
+  }
+  neg <- idx[idx < 0L]
+  pos <- idx[idx > 0L]
+  if (length(neg) && length(pos)) {
+    stop("Cannot mix positive and negative indices", call. = FALSE)
+  }
+  if (length(neg)) {
+    return(setdiff(seq_len(n), abs(neg)))
+  }
+  if (any(pos > n)) {
+    stop("Index out of bounds", call. = FALSE)
+  }
+  pos
+}
+
+seq_chunk <- function(n, size) {
+  if (n <= 0L) {
+    return(list())
+  }
+  split(seq_len(n), ceiling(seq_along(seq_len(n)) / size))
+}
+
+safe_mean <- function(x, dim, na.rm = FALSE) {
+  if (requireNamespace("matrixStats", quietly = TRUE)) {
+    if (identical(dim, "rows")) {
+      return(matrixStats::rowMeans2(x, na.rm = na.rm))
+    }
+    return(matrixStats::colMeans2(x, na.rm = na.rm))
+  }
+  if (identical(dim, "rows")) {
+    return(rowMeans(x, na.rm = na.rm))
+  }
+  colMeans(x, na.rm = na.rm)
+}
+
+safe_sd <- function(x, dim, na.rm = FALSE) {
+  if (requireNamespace("matrixStats", quietly = TRUE)) {
+    if (identical(dim, "rows")) {
+      return(matrixStats::rowSds(x, na.rm = na.rm))
+    }
+    return(matrixStats::colSds(x, na.rm = na.rm))
+  }
+  if (identical(dim, "rows")) {
+    return(apply(x, 1L, stats::sd, na.rm = na.rm))
+  }
+  apply(x, 2L, stats::sd, na.rm = na.rm)
+}
+
+safe_center <- function(x, dim, na.rm = FALSE) {
+  if (identical(dim, "rows")) {
+    means <- safe_mean(x, "rows", na.rm = na.rm)
+    sweep(x, 1L, means, FUN = "-")
+  } else {
+    means <- safe_mean(x, "cols", na.rm = na.rm)
+    sweep(x, 2L, means, FUN = "-")
+  }
+}
+
+safe_scale_matrix <- function(x, dim, center, scale, na.rm = FALSE) {
+  if (!center && !scale) {
+    return(x)
+  }
+  if (center) {
+    x <- safe_center(x, dim, na.rm = na.rm)
+  }
+  if (scale) {
+    sds <- safe_sd(x, if (identical(dim, "rows")) "rows" else "cols", na.rm = na.rm)
+    sds[sds == 0] <- 1
+    margin <- if (identical(dim, "rows")) 1L else 2L
+    x <- sweep(x, margin, sds, FUN = "/")
+  }
+  x
+}
+</file>
+
+<file path="tests/testthat/test-core.R">
+test_that("delarr constructs from matrix", {
+  mat <- matrix(1:9, 3, 3)
+  x <- delarr(mat)
+  expect_s3_class(x, "delarr")
+  expect_equal(dim(x), c(3, 3))
+  expect_equal(collect(x), mat)
+})
+
+test_that("slicing is deferred and collected correctly", {
+  mat <- matrix(1:16, 4, 4)
+  x <- delarr(mat)
+  y <- x[2:3, 1:2]
+  expect_equal(dim(y), c(2, 2))
+  expect_equal(collect(y), mat[2:3, 1:2])
+})
+
+test_that("map and arithmetic ops fuse", {
+  mat <- matrix(runif(9), 3, 3)
+  arr <- delarr(mat)
+  y <- d_map(arr, ~ .x * 2)
+  y <- y + 1
+  y <- d_where(y, ~ .x > 0)
+  expect_equal(collect(y), ifelse((mat * 2 + 1) > 0, mat * 2 + 1, 0))
+})
+
+test_that("binary ops stream without materialising RHS", {
+  set.seed(5)
+  lhs <- matrix(rnorm(25), 5, 5)
+  rhs <- matrix(rnorm(25), 5, 5)
+  x <- delarr(lhs)
+  y <- delarr(rhs)
+  expect_equal(collect(x + y, chunk_size = 2L), lhs + rhs)
+  expect_identical(collect(x > 0), lhs > 0)
+})
+
+test_that("emap2 with delarr RHS pulls matching chunks", {
+  set.seed(11)
+  lhs <- matrix(rnorm(20), 4, 5)
+  rhs <- matrix(rnorm(20), 4, 5)
+  tracker <- new.env(parent = emptyenv())
+  tracker$pulls <- 0L
+  seed_rhs <- delarr_seed(
+    nrow = nrow(rhs),
+    ncol = ncol(rhs),
+    pull = function(rows = NULL, cols = NULL) {
+      tracker$pulls <- tracker$pulls + 1L
+      rows <- rows %||% seq_len(nrow(rhs))
+      cols <- cols %||% seq_len(ncol(rhs))
+      rhs[rows, cols, drop = FALSE]
+    }
+  )
+  x <- delarr(lhs)
+  y <- delarr(seed_rhs)
+  chunk <- 2L
+  expect_equal(collect(x + y, chunk_size = chunk), lhs + rhs)
+  expect_equal(tracker$pulls, ceiling(ncol(lhs) / chunk))
+})
+
+test_that("broadcasting in binary ops works for vectors", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+  col_vec <- 1:4
+  row_vec <- 1:3
+  expect_equal(collect(x + col_vec), sweep(mat, 2L, col_vec, "+"))
+  expect_equal(collect(row_vec + x), sweep(mat, 1L, row_vec, "+"))
+})
+
+test_that("comparisons return logical matrices", {
+  set.seed(3)
+  mat <- matrix(rnorm(15), 5, 3)
+  x <- delarr(mat)
+  out <- collect(x > 0)
+  expect_type(out, "logical")
+  expect_identical(out, mat > 0)
+})
+
+test_that("reduce returns vector", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+  r <- d_reduce(x, base::sum, dim = "rows")
+  expect_equal(collect(r), rowSums(mat))
+})
+
+test_that("reduce dims update lazily", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+  expect_equal(dim(d_reduce(x, sum, dim = "rows")), c(1L, ncol(mat)))
+  expect_equal(dim(d_reduce(x, sum, dim = "cols")), c(nrow(mat), 1L))
+})
+
+test_that("reductions support na.rm", {
+  mat <- matrix(c(1, NA, 3, 4, 5, NA), 3, 2)
+  x <- delarr(mat)
+  expect_equal(collect(d_reduce(x, sum, dim = "rows", na.rm = TRUE)), rowSums(mat, na.rm = TRUE))
+  expect_equal(collect(d_reduce(x, mean, dim = "cols", na.rm = TRUE)), colMeans(mat, na.rm = TRUE))
+})
+
+test_that("center and scale operate along requested dimension", {
+  set.seed(1)
+  mat <- matrix(rnorm(20), 5, 4)
+  x <- delarr(mat)
+  centered <- collect(d_center(x, dim = "rows"))
+  expect_true(all(abs(rowMeans(centered)) < 1e-8))
+
+  z <- collect(d_zscore(x, dim = "cols"))
+  expect_true(all(abs(colMeans(z)) < 1e-8))
+})
+
+test_that("center and zscore honour na.rm", {
+  mat <- matrix(c(1, 2, NA, 4, 5, NA), 3, 2)
+  x <- delarr(mat)
+  centered <- collect(d_center(x, dim = "cols", na.rm = TRUE))
+  expect_equal(colMeans(centered, na.rm = TRUE), rep(0, ncol(centered)))
+  z <- collect(d_zscore(x, dim = "rows", na.rm = TRUE))
+  z_means <- rowMeans(z, na.rm = TRUE)
+  expect_true(all(is.nan(z_means) | abs(z_means) < 1e-8))
+})
+
+test_that("d_where can use alternative fill", {
+  mat <- matrix(c(-1, 2, -3, 4), 2, 2)
+  x <- delarr(mat)
+  out <- collect(d_where(x, ~ .x > 0, fill = NA_real_))
+  expect_true(all(out[mat > 0] == mat[mat > 0]))
+  expect_true(all(is.na(out[mat <= 0])))
+})
+
+test_that("block_apply iterates over chunks", {
+  mat <- matrix(1:20, 5, 4)
+  x <- delarr(mat)
+  res <- block_apply(x, margin = "cols", size = 2L, fn = function(chunk) {
+    colSums(chunk)
+  })
+  expect_equal(length(res), 2L)
+  expect_equal(res[[1]], colSums(mat[, 1:2]))
+  expect_equal(res[[2]], colSums(mat[, 3:4]))
+})
+
+test_that("collect streams in column chunks", {
+  mat <- matrix(seq_len(35), 5, 7)
+  x <- delarr(mat)
+  out <- collect(x, chunk_size = 2L)
+  expect_equal(out, mat)
+})
+
+test_that("chunked reductions over rows and cols agree with base", {
+  set.seed(2)
+  mat <- matrix(runif(60), 6, 10)
+  x <- delarr(mat)
+  expect_equal(collect(d_reduce(x, sum, dim = "rows"), chunk_size = 3L), rowSums(mat))
+  expect_equal(collect(d_reduce(x, mean, dim = "rows"), chunk_size = 3L), rowMeans(mat))
+  expect_equal(collect(d_reduce(x, sum, dim = "cols"), chunk_size = 4L), colSums(mat))
+  expect_equal(collect(d_reduce(x, max, dim = "cols"), chunk_size = 4L), apply(mat, 2L, max))
+})
+
+test_that("rowMeans2 and colMeans2 respect na.rm", {
+  mat <- matrix(c(1, 2, NA, 4), 2, 2)
+  x <- delarr(mat)
+  expect_equal(rowMeans2(x, na.rm = TRUE), rowMeans(mat, na.rm = TRUE))
+  expect_equal(colMeans2(x, na.rm = TRUE), colMeans(mat, na.rm = TRUE))
+})
+
+test_that("print summarises pipeline", {
+  mat <- matrix(1:6, 3, 2)
+  x <- delarr(mat) |> d_center("rows") |> d_reduce(mean, "rows")
+  out <- paste(capture.output(print(x)), collapse = "\n")
+  expect_match(out, "<delarr> 1 x 2", fixed = TRUE)
+  expect_match(out, "center(rows)", fixed = TRUE)
+  expect_match(out, "reduce(rows)", fixed = TRUE)
+})
+
+test_that("emap2 with delarr RHS is pair-chunked and correct", {
+  set.seed(123)
+  lhs <- matrix(rnorm(35), 5, 7)
+  rhs <- matrix(rnorm(35), 5, 7)
+  tracker <- new.env(parent = emptyenv())
+  tracker$pulls <- 0L
+  seed_rhs <- delarr_seed(
+    nrow = nrow(rhs),
+    ncol = ncol(rhs),
+    pull = function(rows = NULL, cols = NULL) {
+      tracker$pulls <- tracker$pulls + 1L
+      rows <- rows %||% seq_len(nrow(rhs))
+      cols <- cols %||% seq_len(ncol(rhs))
+      rhs[rows, cols, drop = FALSE]
+    }
+  )
+  x <- delarr(lhs)
+  y <- delarr(seed_rhs)
+  chunk <- 3L
+  expect_equal(collect(x + y, chunk_size = chunk), lhs + rhs)
+  expect_equal(tracker$pulls, ceiling(ncol(lhs) / chunk))
+})
+
+test_that("broadcasting works for scalars and vectors", {
+  set.seed(4)
+  M <- matrix(rnorm(12), 3, 4)
+  X <- delarr(M)
+  row_vec <- rnorm(nrow(M))
+  col_vec <- rnorm(ncol(M))
+  expect_equal(collect(X + 2), M + 2)
+  expect_equal(collect(X + row_vec), M + matrix(row_vec, nrow(M), ncol(M)))
+  expect_equal(collect(X + col_vec), M + matrix(col_vec, nrow(M), ncol(M), byrow = TRUE))
+})
+
+test_that("comparisons return logical matrices", {
+  set.seed(5)
+  M <- matrix(rnorm(15), 5, 3)
+  X <- delarr(M)
+  out <- collect(X > 0)
+  expect_type(out, "logical")
+  expect_equal(out, M > 0)
+})
+
+test_that("reduce dims update lazily", {
+  M <- matrix(1:12, 3, 4)
+  X <- delarr(M)
+  expect_equal(dim(d_reduce(X, sum, dim = "rows")), c(1L, ncol(M)))
+  expect_equal(dim(d_reduce(X, sum, dim = "cols")), c(nrow(M), 1L))
+})
+
+test_that("NA-aware reductions work", {
+  M <- matrix(c(1, NA, 3, 4, NA, 6), 3, 2, byrow = TRUE)
+  X <- delarr(M)
+  expect_equal(collect(d_reduce(X, sum, dim = "rows", na.rm = TRUE)), rowSums(M, na.rm = TRUE))
+  expect_equal(collect(d_reduce(X, mean, dim = "cols", na.rm = TRUE)), colMeans(M, na.rm = TRUE))
+  expect_equal(collect(d_reduce(X, max, dim = "rows", na.rm = TRUE)), apply(M, 1L, max, na.rm = TRUE))
+})
+
+test_that("print displays pipeline sketch", {
+  M <- matrix(1:9, 3, 3)
+  X <- delarr(M) |> d_center("rows") |> d_zscore("rows")
+  txt <- paste(capture.output(print(X)), collapse = "\n")
+  expect_true(grepl("ops:", txt, fixed = TRUE))
+})
+
+test_that("HDF5 writer streams results to disk", {
+  skip_if_not_installed("hdf5r")
+  path <- tempfile(fileext = ".h5")
+  on.exit(unlink(path), add = TRUE)
+  input <- matrix(runif(30), 5, 6)
+  file <- hdf5r::H5File$new(path, mode = "w")
+  file$create_dataset("X", robj = input)
+  file$close_all()
+
+  X <- delarr_hdf5(path, "X")
+  centred <- X |> d_center("cols")
+  out_path <- tempfile(fileext = ".h5")
+  on.exit(unlink(out_path), add = TRUE)
+  writer <- hdf5_writer(out_path, "Y", ncol = ncol(input), chunk = c(2L, 3L))
+  collect(centred, into = writer, chunk_size = 3L)
+
+  file_out <- hdf5r::H5File$new(out_path, mode = "r")
+  on.exit(file_out$close_all(), add = TRUE)
+  expect_equal(file_out[["Y"]]$read(), collect(d_center(delarr(input), "cols")))
+})
+</file>
+
+<file path="tests/testthat.R">
+library(testthat)
+library(delarr)
+
+test_check("delarr")
+</file>
+
+<file path="DESCRIPTION">
+Package: delarr
+Type: Package
+Title: Lazy Delayed Arrays with Fused Execution
+Version: 0.0.0.9000
+Authors@R: 
+    person(given = "Ben", family = "Buchsbaum", role = c("aut", "cre"),
+           email = "ben@example.com")
+Description: Provides a lightweight delayed array abstraction with tidy-friendly
+    verbs, expression fusion, and pluggable storage backends.
+License: MIT + file LICENSE
+Depends: R (>= 4.1)
+Imports:
+    rlang
+Suggests:
+    matrixStats,
+    hdf5r,
+    testthat (>= 3.1.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Encoding: UTF-8
+LazyData: false
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2.9000
+</file>
+
+</files>

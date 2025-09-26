@@ -1,0 +1,153 @@
+---
+title: "Getting Started with delarr"
+author: "delarr team"
+date: "`r format(Sys.Date())`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with delarr}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4
+)
+```
+
+## Overview
+
+`delarr` is a tiny, pipe-friendly delayed matrix type for R. It keeps the
+surface area deliberately small—one S3 class plus a handful of verbs—while still
+supporting fused transformations, streaming reductions, and on-disk backends.
+This vignette walks through the essentials and shows how to stream results back
+to HDF5 without pulling everything into memory.
+
+## Installation
+
+`delarr` is under active development. Install the latest development version by
+cloning the repository and loading it with `pkgload` or `devtools`:
+
+```r
+# install.packages("pkgload")
+pkgload::load_all("/path/to/delarr")
+```
+
+Once installed, load the package:
+
+```{r library, message=FALSE}
+library(delarr)
+```
+
+## A first lazy pipeline
+
+The core constructor `delarr()` wraps an existing matrix (or a seed backend).
+The verbs operate lazily until you call `collect()`.
+
+```{r lazy-pipeline}
+set.seed(1)
+mat <- matrix(rnorm(20), 5, 4)
+arr <- delarr(mat)
+
+result <- arr |>
+  d_center(dim = "rows", na.rm = FALSE) |>
+  d_map(~ .x * 0.5) |>
+  d_reduce(mean, dim = "rows") |>
+  collect()
+
+result
+```
+
+## Broadcasting and binary operations
+
+Binary operations (`d_map2()` or arithmetic operators) remain lazy and support
+broadcasting of scalars and row/column vectors.
+
+```{r broadcasting}
+row_bias <- rnorm(nrow(mat))
+col_scale <- runif(ncol(mat), 0.5, 1.5)
+
+delarr(mat) |>
+  (`+`)(row_bias) |>
+  (`*`)(col_scale) |>
+  d_reduce(mean, dim = "cols") |>
+  collect(chunk_size = 2)
+```
+
+## Streaming to HDF5
+
+`delarr_hdf5()` exposes an HDF5 dataset lazily, opening the file only once per
+`collect()`. Pair it with `hdf5_writer()` to stream the output back to disk in
+manageable column chunks.
+
+```{r hdf5, eval=knitr::is_html_output(), message=FALSE}
+if (requireNamespace("hdf5r", quietly = TRUE)) {
+  tf_in <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf_in), add = TRUE)
+  input <- matrix(runif(30), 5, 6)
+  f <- hdf5r::H5File$new(tf_in, mode = "w")
+  f$create_dataset("X", data = input)
+  f$close_all()
+
+  X <- delarr_hdf5(tf_in, "X")
+  centred <- X |> d_center("cols")
+
+  tf_out <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf_out), add = TRUE)
+  writer <- hdf5_writer(tf_out, "X_centered", ncol = dim(centred)[2])
+  collect(centred, into = writer, chunk_size = 3L)
+
+  g <- hdf5r::H5File$new(tf_out, mode = "r")
+  centred_back <- g[["X_centered"]]$read()
+  g$close_all()
+
+  centred_back
+} else {
+  "Install the 'hdf5r' package to run the streaming example."
+}
+```
+
+## Custom backends with `delarr_backend()`
+
+Any storage layer that can provide a `(rows, cols) -> matrix` pull function can
+become a `delarr` backend. The adapter below wraps a simple list interface.
+
+```{r custom-backend}
+random_backend <- list(
+  pull = function(rows = NULL, cols = NULL) {
+    rows <- rows %||% seq_len(100)
+    cols <- cols %||% seq_len(50)
+    matrix(rnorm(length(rows) * length(cols)), length(rows), length(cols))
+  }
+)
+
+seed <- delarr_seed(
+  nrow = 100,
+  ncol = 50,
+  pull = function(rows, cols) random_backend$pull(rows, cols)
+)
+
+rand_arr <- delarr(seed)
+rand_arr |>
+  d_map(~ .x^2) |>
+  d_reduce(mean, dim = "cols") |>
+  collect()
+```
+
+## Testing and next steps
+
+The test suite covers lazy fusion, streaming reductions, the HDF5 backend, and
+the writer interface. Run it locally with:
+
+```r
+pkgload::load_all(".")
+testthat::test_dir("tests/testthat")
+```
+
+For ideas on extending `delarr`, see the roadmap in the README. Common next
+steps include companion packages for specific backends (e.g., memory-mapped
+files), sparse adapters, or additional documentation such as performance
+benchmarks.
