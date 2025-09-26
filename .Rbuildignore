@@ -1,0 +1,8 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^notes$
+^repomix-output\.txt$
+^repomix-output\.xml$
+^delarr_cheatsheet_v3\.md$
+^\.gitignore$
+^vignettes/.*\.html$

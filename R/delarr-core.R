@@ -122,7 +122,7 @@ print.delarr <- function(x, ...) {
     labels <- vapply(x$ops, describe_op, character(1))
     labels <- labels[labels != ""]
     if (length(labels)) {
-      cat("<delarr> ", d[1], " x ", d[2], " • ops: ", paste(labels, collapse = " -> "), "\n", sep = "")
+      cat("<delarr> ", d[1], " x ", d[2], " - ops: ", paste(labels, collapse = " -> "), "\n", sep = "")
       return(invisible(x))
     }
   }

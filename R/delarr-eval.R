@@ -172,6 +172,21 @@ infer_chunk_size <- function(seed, requested_cols, chunk_size) {
   as.integer(min(default, requested_cols))
 }
 
+#' Materialise a delayed matrix
+#'
+#' Streams column chunks from the backing seed, applying deferred operations
+#' and optional reductions on the fly. By default the result is returned as a
+#' base matrix or vector; alternatively, supply a writer via `into` to stream
+#' the output elsewhere (e.g., `hdf5_writer()`).
+#'
+#' @param x A `delarr` object.
+#' @param into Optional writer or callback used to receive streamed chunks.
+#' @param chunk_size Optional column chunk size; defaults to seed hints or
+#'   16384.
+#'
+#' @return A realised matrix/vector, or `NULL` invisibly when writing to
+#'   `into`.
+#' @export
 collect <- function(x, into = NULL, chunk_size = NULL) {
   seed <- x$seed
   if (is.function(seed$begin)) seed$begin()
@@ -445,6 +460,18 @@ finalize_target <- function(target) {
   invisible(NULL)
 }
 
+#' Apply a function to streamed matrix blocks
+#'
+#' Evaluates a `delarr` slice-by-slice, materialising manageable chunks for
+#' further processing without realising the full matrix.
+#'
+#' @param x A `delarr` object.
+#' @param margin Dimension along which to chunk (`"cols"` or `"rows"`).
+#' @param size Approximate chunk size.
+#' @param fn Function applied to each materialised chunk.
+#'
+#' @return A list of results returned by `fn`.
+#' @export
 block_apply <- function(x, margin = c("cols", "rows"), size = 16384L, fn) {
   margin <- match.arg(margin)
   if (!is.function(fn)) {
