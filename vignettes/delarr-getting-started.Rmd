@@ -117,8 +117,8 @@ become a `delarr` backend. The adapter below wraps a simple list interface.
 ```{r custom-backend}
 random_backend <- list(
   pull = function(rows = NULL, cols = NULL) {
-    rows <- rows %||% seq_len(100)
-    cols <- cols %||% seq_len(50)
+    rows <- if (is.null(rows)) seq_len(100) else rows
+    cols <- if (is.null(cols)) seq_len(50) else cols
     matrix(rnorm(length(rows) * length(cols)), length(rows), length(cols))
   }
 )
