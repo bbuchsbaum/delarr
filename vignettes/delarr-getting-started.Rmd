@@ -68,11 +68,10 @@ broadcasting of scalars and row/column vectors.
 
 ```{r broadcasting}
 row_bias <- rnorm(nrow(mat))
-col_scale <- runif(ncol(mat), 0.5, 1.5)
 
 delarr(mat) |>
   (`+`)(row_bias) |>
-  (`*`)(col_scale) |>
+  (`*`)(1.5) |>
   d_reduce(mean, dim = "cols") |>
   collect(chunk_size = 2)
 ```
@@ -89,7 +88,7 @@ if (requireNamespace("hdf5r", quietly = TRUE)) {
   on.exit(unlink(tf_in), add = TRUE)
   input <- matrix(runif(30), 5, 6)
   f <- hdf5r::H5File$new(tf_in, mode = "w")
-  f$create_dataset("X", data = input)
+  f$create_dataset("X", robj = input)
   f$close_all()
 
   X <- delarr_hdf5(tf_in, "X")
