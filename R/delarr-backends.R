@@ -75,6 +75,28 @@ delarr_mem <- function(x) {
 #'
 #' @return A `delarr` that streams data from the HDF5 dataset.
 #' @export
+#' @examples
+#' if (requireNamespace("hdf5r", quietly = TRUE)) {
+#'   # Create a temporary HDF5 file
+#'   tf <- tempfile(fileext = ".h5")
+#'   data <- matrix(1:20, nrow = 4, ncol = 5)
+#'
+#'   # Write test data
+#'   f <- hdf5r::H5File$new(tf, mode = "w")
+#'   f$create_dataset("X", robj = data)
+#'   f$close_all()
+#'
+#'   # Load as delayed array
+#'   darr <- delarr_hdf5(tf, "X")
+#'   darr
+#'
+#'   # Apply operations and collect
+#'   result <- darr |> d_map(~ .x * 2) |> collect()
+#'   result
+#'
+#'   # Clean up
+#'   unlink(tf)
+#' }
 delarr_hdf5 <- function(path, dataset) {
   if (!requireNamespace("hdf5r", quietly = TRUE)) {
     stop("Package 'hdf5r' is required for delarr_hdf5", call. = FALSE)
