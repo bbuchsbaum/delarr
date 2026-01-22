@@ -20,3 +20,15 @@ A \code{delarr} including the mask.
 Elements failing the predicate are replaced with \code{fill} at materialisation
 time.
 }
+\examples{
+mat <- matrix(c(-1, 2, -3, 4, -5, 6), nrow = 2, ncol = 3)
+darr <- delarr(mat)
+
+# Replace negative values with 0
+masked <- darr |> d_where(~ .x >= 0, fill = 0) |> collect()
+masked
+
+# Replace values below threshold with NA
+filtered <- darr |> d_where(~ .x > 1, fill = NA) |> collect()
+filtered
+}

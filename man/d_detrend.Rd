@@ -20,3 +20,16 @@ A \code{delarr} with the detrend operation queued.
 Removes a polynomial trend of the specified degree along the chosen
 dimension.
 }
+\examples{
+# Create matrix with linear trend in rows
+mat <- matrix(1:12 + rep(1:4, each = 3), nrow = 3, ncol = 4)
+darr <- delarr(mat)
+
+# Remove linear trend along rows
+detrended <- darr |> d_detrend(dim = "rows", degree = 1L) |> collect()
+detrended
+
+# Remove quadratic trend
+quad_detrend <- darr |> d_detrend(dim = "rows", degree = 2L) |> collect()
+quad_detrend
+}

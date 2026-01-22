@@ -141,6 +141,18 @@ d_zscore <- function(x, dim = c("rows", "cols"), na.rm = FALSE) {
 #'
 #' @return A `delarr` with the detrend operation queued.
 #' @export
+#' @examples
+#' # Create matrix with linear trend in rows
+#' mat <- matrix(1:12 + rep(1:4, each = 3), nrow = 3, ncol = 4)
+#' darr <- delarr(mat)
+#'
+#' # Remove linear trend along rows
+#' detrended <- darr |> d_detrend(dim = "rows", degree = 1L) |> collect()
+#' detrended
+#'
+#' # Remove quadratic trend
+#' quad_detrend <- darr |> d_detrend(dim = "rows", degree = 2L) |> collect()
+#' quad_detrend
 d_detrend <- function(x, dim = c("rows", "cols"), degree = 1L) {
   stopifnot(inherits(x, "delarr"))
   dim <- match.arg(dim)
@@ -158,6 +170,17 @@ d_detrend <- function(x, dim = c("rows", "cols"), degree = 1L) {
 #'
 #' @return A `delarr` including the mask.
 #' @export
+#' @examples
+#' mat <- matrix(c(-1, 2, -3, 4, -5, 6), nrow = 2, ncol = 3)
+#' darr <- delarr(mat)
+#'
+#' # Replace negative values with 0
+#' masked <- darr |> d_where(~ .x >= 0, fill = 0) |> collect()
+#' masked
+#'
+#' # Replace values below threshold with NA
+#' filtered <- darr |> d_where(~ .x > 1, fill = NA) |> collect()
+#' filtered
 d_where <- function(x, predicate, fill = 0) {
   stopifnot(inherits(x, "delarr"))
   fn <- rlang::as_function(predicate)
