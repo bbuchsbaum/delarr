@@ -234,7 +234,16 @@ test_that("print displays pipeline sketch", {
 })
 
 test_that("HDF5 writer streams results to disk", {
-  skip_if_not_installed("hdf5r")
+  # HDF5 tests should FAIL when hdf5r unavailable - it's a required dependency for full test suite
+  # If you cannot install hdf5r, set environment variable DELARR_SKIP_HDF5=true to skip
+  if (Sys.getenv("DELARR_SKIP_HDF5") == "true") {
+    skip("HDF5 tests skipped via DELARR_SKIP_HDF5 environment variable")
+  }
+  if (!requireNamespace("hdf5r", quietly = TRUE)) {
+    stop("Package 'hdf5r' is required for full test suite. ",
+         "Install it with: install.packages('hdf5r'). ",
+         "Or set DELARR_SKIP_HDF5=true to skip HDF5 tests.", call. = FALSE)
+  }
   path <- tempfile(fileext = ".h5")
   on.exit(unlink(path), add = TRUE)
   input <- matrix(runif(30), 5, 6)
