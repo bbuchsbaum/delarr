@@ -7,3 +7,5 @@
 ^\.gitignore$
 ^vignettes/.*\.html$
 ^\.planning$
+^doc$
+^Meta$

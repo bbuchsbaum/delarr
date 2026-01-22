@@ -6,3 +6,5 @@
 *.Rproj
 *.html
 .Rcheck/
+/doc/
+/Meta/
