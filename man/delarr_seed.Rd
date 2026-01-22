@@ -36,3 +36,23 @@ An object of class \code{delarr_seed}.
 Seeds encapsulate storage access for delayed matrices. They define matrix
 dimensions and a \code{pull()} function that returns materialised slices.
 }
+\examples{
+# Create a custom seed with a pull function
+data <- matrix(1:12, nrow = 3, ncol = 4)
+
+seed <- delarr_seed(
+  nrow = 3,
+  ncol = 4,
+  pull = function(rows = NULL, cols = NULL) {
+    rows <- rows \%||\% seq_len(3)
+    cols <- cols \%||\% seq_len(4)
+    data[rows, cols, drop = FALSE]
+  }
+)
+seed
+
+# Wrap in delarr() to use with lazy operations
+darr <- delarr(seed)
+result <- darr |> d_map(~ .x * 2) |> collect()
+result
+}
