@@ -183,3 +183,98 @@ test_that("chunk boundaries don't affect binary operations", {
   expect_equal(result_2, mat1 + mat2)
   expect_equal(result_6, mat1 + mat2)
 })
+
+# --- Broadcasting Edge Case Tests (TEST-04) ---
+
+test_that("broadcasting with vector matching nrow works", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+  row_vec <- 1:3
+
+  result <- collect(x + row_vec)
+  expected <- sweep(mat, 1L, row_vec, "+")
+  expect_equal(result, expected)
+})
+
+test_that("broadcasting with vector matching ncol works", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+  col_vec <- 1:4
+
+  result <- collect(x + col_vec)
+  expected <- sweep(mat, 2L, col_vec, "+")
+  expect_equal(result, expected)
+})
+
+test_that("broadcasting rejects non-conformable vectors", {
+  mat <- matrix(1:12, 3, 4)  # 3 rows, 4 cols
+  x <- delarr(mat)
+  bad_vec <- 1:5  # Neither 3 nor 4
+
+  expect_error(collect(x + bad_vec), "Non-conformable")
+})
+
+test_that("broadcasting with scalar works", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+
+  expect_equal(collect(x + 10), mat + 10)
+  expect_equal(collect(x * 2), mat * 2)
+  expect_equal(collect(x - 1), mat - 1)
+})
+
+test_that("broadcasting handles NaN correctly", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+
+  result <- collect(x + NaN)
+  expect_true(all(is.nan(result)))
+})
+
+test_that("broadcasting handles Inf correctly", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+
+  result <- collect(x + Inf)
+  expect_true(all(is.infinite(result)))
+  expect_true(all(result > 0))
+
+  result_neg <- collect(x + (-Inf))
+  expect_true(all(is.infinite(result_neg)))
+  expect_true(all(result_neg < 0))
+})
+
+test_that("broadcasting with matrix of same dimensions works", {
+  mat1 <- matrix(1:12, 3, 4)
+  mat2 <- matrix(13:24, 3, 4)
+  x <- delarr(mat1)
+
+  result <- collect(x + mat2)
+  expect_equal(result, mat1 + mat2)
+})
+
+test_that("broadcasting rejects matrix of wrong dimensions", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+  wrong_mat <- matrix(1:6, 2, 3)
+
+  expect_error(collect(x + wrong_mat), "Non-conformable")
+})
+
+test_that("broadcasting with delarr RHS of same dimensions works", {
+  mat1 <- matrix(1:12, 3, 4)
+  mat2 <- matrix(13:24, 3, 4)
+  x <- delarr(mat1)
+  y <- delarr(mat2)
+
+  result <- collect(x + y)
+  expect_equal(result, mat1 + mat2)
+})
+
+test_that("broadcasting in d_map2 with scalar works", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+
+  result <- collect(d_map2(x, 2, `*`))
+  expect_equal(result, mat * 2)
+})
