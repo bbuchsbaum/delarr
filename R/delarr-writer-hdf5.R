@@ -31,7 +31,7 @@
 #'   transformed <- darr |> d_center(dim = "cols")
 #'
 #'   tf_out <- tempfile(fileext = ".h5")
-#'   writer <- hdf5_writer(tf_out, "result", ncol = ncol(transformed))
+#'   writer <- hdf5_writer(tf_out, "result", ncol = ncol(transformed), compression = 4L)
 #'   collect(transformed, into = writer)
 #'
 #'   # Verify output

@@ -4,7 +4,7 @@
 \alias{hdf5_writer}
 \title{HDF5 writer for streaming \code{collect()}}
 \usage{
-hdf5_writer(path, dataset, ncol, chunk = c(128L, 4096L), compression = NULL)
+hdf5_writer(path, dataset, ncol, chunk = c(128L, 4096L), compression = 4L)
 }
 \arguments{
 \item{path}{Path to the HDF5 file. The file is created if it does not exist.}
@@ -17,8 +17,9 @@ this to size the target dataset up-front.}
 \item{chunk}{Integer vector of length two giving the chunk size
 \verb{(rows, cols)} for the target dataset (optional).}
 
-\item{compression}{Compression level passed to \code{hdf5r} (currently unused but
-kept for forward compatibility).}
+\item{compression}{Gzip compression level (0-9). Use 0 for no compression,
+higher values for better compression at cost of speed. Default is 4.
+Use NULL to disable compression entirely.}
 }
 \value{
 A writer object with \verb{$write()} and \verb{$finalize()} methods understood
@@ -43,7 +44,7 @@ if (requireNamespace("hdf5r", quietly = TRUE)) {
   transformed <- darr |> d_center(dim = "cols")
 
   tf_out <- tempfile(fileext = ".h5")
-  writer <- hdf5_writer(tf_out, "result", ncol = ncol(transformed))
+  writer <- hdf5_writer(tf_out, "result", ncol = ncol(transformed), compression = 4L)
   collect(transformed, into = writer)
 
   # Verify output

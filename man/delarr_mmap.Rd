@@ -2,35 +2,42 @@
 % Please edit documentation in R/delarr-backends.R
 \name{delarr_mmap}
 \alias{delarr_mmap}
-\title{Placeholder for a memory-mapped backend}
+\title{Create a delayed matrix from a memory-mapped file}
 \usage{
-delarr_mmap(...)
+delarr_mmap(path, nrow, ncol, mode = NULL)
 }
 \arguments{
-\item{...}{Reserved for future options.}
+\item{path}{Path to the binary file containing matrix data.}
+
+\item{nrow}{Number of rows in the matrix.}
+
+\item{ncol}{Number of columns in the matrix.}
+
+\item{mode}{mmap mode object specifying data type. Default is double().}
 }
 \value{
-No return value; the function always errors.
+A \code{delarr} that streams data from the memory-mapped file.
 }
 \description{
-The mmap helper is not yet implemented; users can supply their own backend
-via \code{delarr_backend()} in the meantime.
+Uses the mmap package to lazily read slices from a binary file on demand.
+The file must contain raw numeric data in column-major order (R's default).
 }
 \examples{
-# delarr_mmap() is not yet implemented
-\dontrun{
-delarr_mmap()  # Throws an error
-}
+if (requireNamespace("mmap", quietly = TRUE)) {
+  # Create a binary file with matrix data
+  mat <- matrix(1:20, nrow = 4, ncol = 5)
+  tf <- tempfile()
+  writeBin(as.double(mat), tf)
 
-# Use delarr_backend() with a custom pull function instead
-mat <- matrix(1:12, nrow = 3, ncol = 4)
-darr <- delarr_backend(
-  nrow = 3, ncol = 4,
-  pull = function(rows = NULL, cols = NULL) {
-    rows <- rows \%||\% seq_len(3)
-    cols <- cols \%||\% seq_len(4)
-    mat[rows, cols, drop = FALSE]
-  }
-)
-collect(darr)
+  # Load as delayed array
+  darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
+  darr
+
+  # Apply operations and collect
+  result <- darr |> d_map(~ .x * 2) |> collect()
+  result
+
+  # Clean up
+  unlink(tf)
+}
 }
