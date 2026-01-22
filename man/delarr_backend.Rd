@@ -34,3 +34,22 @@ A \code{delarr} backed by the provided pull function.
 Provides a convenience helper that turns a user-supplied slice function into
 a ready-to-use \code{delarr} object.
 }
+\examples{
+# Create a custom backend from a pull function
+data <- matrix(1:20, nrow = 4, ncol = 5)
+
+darr <- delarr_backend(
+  nrow = 4,
+  ncol = 5,
+  pull = function(rows = NULL, cols = NULL) {
+    rows <- rows \%||\% seq_len(4)
+    cols <- cols \%||\% seq_len(5)
+    data[rows, cols, drop = FALSE]
+  }
+)
+darr
+
+# Use like any delarr
+result <- darr |> d_map(~ .x * 2) |> collect()
+result
+}

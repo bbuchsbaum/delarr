@@ -12,6 +12,24 @@
 #'
 #' @return A `delarr` backed by the provided pull function.
 #' @export
+#' @examples
+#' # Create a custom backend from a pull function
+#' data <- matrix(1:20, nrow = 4, ncol = 5)
+#'
+#' darr <- delarr_backend(
+#'   nrow = 4,
+#'   ncol = 5,
+#'   pull = function(rows = NULL, cols = NULL) {
+#'     rows <- rows %||% seq_len(4)
+#'     cols <- cols %||% seq_len(5)
+#'     data[rows, cols, drop = FALSE]
+#'   }
+#' )
+#' darr
+#'
+#' # Use like any delarr
+#' result <- darr |> d_map(~ .x * 2) |> collect()
+#' result
 delarr_backend <- function(nrow, ncol, pull, chunk_hint = NULL, dimnames = NULL,
                           begin = NULL, end = NULL) {
   seed <- delarr_seed(
@@ -32,6 +50,15 @@ delarr_backend <- function(nrow, ncol, pull, chunk_hint = NULL, dimnames = NULL,
 #'
 #' @return A `delarr` referencing the original matrix.
 #' @export
+#' @examples
+#' # Wrap an in-memory matrix
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr_mem(mat)
+#' darr
+#'
+#' # Apply operations lazily
+#' result <- darr |> d_center(dim = "rows") |> collect()
+#' result
 delarr_mem <- function(x) {
   if (!is.matrix(x)) {
     stop("x must be a matrix", call. = FALSE)

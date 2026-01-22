@@ -15,3 +15,13 @@ A \code{delarr} referencing the original matrix.
 \description{
 Create a delayed matrix from an in-memory matrix
 }
+\examples{
+# Wrap an in-memory matrix
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+darr <- delarr_mem(mat)
+darr
+
+# Apply operations lazily
+result <- darr |> d_center(dim = "rows") |> collect()
+result
+}
