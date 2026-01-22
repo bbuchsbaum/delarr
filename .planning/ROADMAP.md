@@ -87,29 +87,34 @@ Plans:
 
 ### Phase 3: Platform Readiness
 
-**Goal:** Ensure graceful handling of optional dependencies and multi-platform compatibility
+**Goal:** Make hdf5r and mmap required Imports and validate on Windows via win-builder
 
 **Dependencies:** Phase 2 (code must be correct before platform testing)
 
-**Plans:** (created by /gsd:plan-phase)
+**Plans:** 3 plans
 
-**Requirements:**
-- DEP-01: All hdf5r usage wrapped in requireNamespace() checks
-- DEP-02: Graceful error messages when HDF5 unavailable
-- DEP-03: Examples using HDF5 in \donttest{} or conditional blocks
-- DEP-04: Vignette handles missing hdf5r gracefully
+Plans:
+- [ ] 03-01-PLAN.md — Move hdf5r and mmap to Imports, remove defensive requireNamespace checks
+- [ ] 03-02-PLAN.md — Clean up examples and tests (remove conditional wrappers)
+- [ ] 03-03-PLAN.md — Win-builder validation (R-devel and R-release)
+
+**Requirements (REVISED per user decision in 03-CONTEXT.md):**
+- DEP-01: INVERTED — Remove unnecessary requireNamespace("hdf5r") checks (hdf5r is now required Import)
+- DEP-02: INVERTED — Remove graceful degradation code (not needed with required Import)
+- DEP-03: SIMPLIFIED — Remove if-requireNamespace wrappers from examples (keep \donttest{} only for genuinely slow examples)
+- DEP-04: KEPT AS-IS — Vignette conditional chunks remain as harmless safety net (user preference)
 - PLAT-01: Pass win-builder R-devel check
 - PLAT-02: Pass win-builder R-release check
-- PLAT-03: Package works when hdf5r unavailable (core functionality)
+- PLAT-03: INVERTED — Verify package works WITH hdf5r and mmap (they're required)
 
 **Success Criteria:**
-1. All hdf5r function calls wrapped in `if (requireNamespace("hdf5r", quietly = TRUE))`
-2. When hdf5r unavailable, informative error messages guide users (not cryptic failures)
-3. Package loads and core non-HDF5 functionality works without hdf5r installed
-4. Examples involving HDF5 are conditional or in \donttest{} blocks
-5. Vignette builds successfully even when hdf5r unavailable (conditional chunks)
+1. hdf5r and mmap are in DESCRIPTION Imports field (not Suggests)
+2. No defensive requireNamespace() checks for hdf5r or mmap in R/ code
+3. HDF5 and mmap examples run directly without conditional wrappers
+4. Tests no longer need DELARR_SKIP_HDF5 escape hatch
+5. Vignette builds successfully (conditional chunks kept as safety net)
 6. win-builder checks (R-devel and R-release) pass with 0 errors, 0 warnings
-7. Package installs and tests pass on Windows, macOS, and Linux
+7. All three backends (delarr_hdf5, delarr_mem, delarr_mmap) work on Windows
 
 ### Phase 4: Submission
 
@@ -141,7 +146,7 @@ Plans:
 |-------|--------|----------|--------------|
 | 1 - Baseline & Documentation | Complete | 100% | 12 requirements |
 | 2 - Code Quality | Complete | 100% | 10 requirements |
-| 3 - Platform Readiness | Pending | 0% | 7 requirements |
+| 3 - Platform Readiness | Planned | 0% | 7 requirements (revised) |
 | 4 - Submission | Pending | 0% | 5 requirements |
 
 **Overall:** 22/30 requirements complete (73%)
@@ -152,7 +157,9 @@ Plans:
 |----------|-----------|-------|
 | Compression parameter implemented | gzip_level 0-9 with default 4L; NULL disables compression | Phase 2 |
 | delarr_mmap() implemented | Full mmap package backend for memory-mapped binary files | Phase 2 |
-| hdf5r is required for full tests | Tests FAIL (not skip) when unavailable; DELARR_SKIP_HDF5 escape hatch | Phase 2 |
+| hdf5r and mmap are required Imports | User decision: package requires both dependencies; no graceful degradation needed | Phase 3 |
+| Remove defensive code for required deps | If in Imports, guaranteed present; requireNamespace() checks are redundant | Phase 3 |
+| Keep vignette conditionals as safety net | User preference for defensive documentation, even if redundant | Phase 3 |
 
 ---
 *Roadmap created: 2026-01-22*
