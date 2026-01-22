@@ -156,32 +156,110 @@ delarr_hdf5 <- function(path, dataset) {
   )
 }
 
-#' Placeholder for a memory-mapped backend
+#' Create a delayed matrix from a memory-mapped file
 #'
-#' The mmap helper is not yet implemented; users can supply their own backend
-#' via `delarr_backend()` in the meantime.
+#' Uses the mmap package to lazily read slices from a binary file on demand.
+#' The file must contain raw numeric data in column-major order (R's default).
 #'
-#' @param ... Reserved for future options.
+#' @param path Path to the binary file containing matrix data.
+#' @param nrow Number of rows in the matrix.
+#' @param ncol Number of columns in the matrix.
+#' @param mode mmap mode object specifying data type. Default is double().
 #'
-#' @return No return value; the function always errors.
+#' @return A `delarr` that streams data from the memory-mapped file.
 #' @export
 #' @examples
-#' # delarr_mmap() is not yet implemented
-#' \dontrun{
-#' delarr_mmap()  # Throws an error
-#' }
+#' if (requireNamespace("mmap", quietly = TRUE)) {
+#'   # Create a binary file with matrix data
+#'   mat <- matrix(1:20, nrow = 4, ncol = 5)
+#'   tf <- tempfile()
+#'   writeBin(as.double(mat), tf)
 #'
-#' # Use delarr_backend() with a custom pull function instead
-#' mat <- matrix(1:12, nrow = 3, ncol = 4)
-#' darr <- delarr_backend(
-#'   nrow = 3, ncol = 4,
-#'   pull = function(rows = NULL, cols = NULL) {
-#'     rows <- rows %||% seq_len(3)
-#'     cols <- cols %||% seq_len(4)
-#'     mat[rows, cols, drop = FALSE]
-#'   }
-#' )
-#' collect(darr)
-delarr_mmap <- function(...) {
-  stop("delarr_mmap() is not implemented yet. Use delarr_backend() with a custom pull function.", call. = FALSE)
+#'   # Load as delayed array
+#'   darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
+#'   darr
+#'
+#'   # Apply operations and collect
+#'   result <- darr |> d_map(~ .x * 2) |> collect()
+#'   result
+#'
+#'   # Clean up
+#'   unlink(tf)
+#' }
+delarr_mmap <- function(path, nrow, ncol, mode = NULL) {
+  if (!requireNamespace("mmap", quietly = TRUE)) {
+    stop("Package 'mmap' is required for delarr_mmap(). ",
+         "Install it or use delarr_backend() with a custom pull function.",
+         call. = FALSE)
+  }
+
+  # Validate inputs
+  if (!file.exists(path)) {
+    stop("File not found: ", path, call. = FALSE)
+  }
+  if (!is.numeric(nrow) || !is.numeric(ncol) || nrow < 1 || ncol < 1) {
+    stop("nrow and ncol must be positive integers", call. = FALSE)
+  }
+  nrow <- as.integer(nrow)
+  ncol <- as.integer(ncol)
+
+  # Default to double precision
+  if (is.null(mode)) {
+    mode <- mmap::real64()
+  }
+
+  # Calculate expected file size
+  elem_size <- mmap::sizeof(mode)
+  expected_bytes <- nrow * ncol * elem_size
+  actual_bytes <- file.info(path)$size
+
+  if (actual_bytes < expected_bytes) {
+    stop(sprintf("File too small: expected %d bytes for %dx%d matrix, got %d",
+                 expected_bytes, nrow, ncol, actual_bytes), call. = FALSE)
+  }
+
+  # State for lazy file access
+  state <- new.env(parent = emptyenv())
+  state$m <- NULL
+
+  begin <- function() {
+    if (!is.null(state$m)) return(invisible(NULL))
+    state$m <- mmap::mmap(path, mode = mode)
+    invisible(NULL)
+  }
+
+  end <- function() {
+    if (!is.null(state$m)) {
+      mmap::munmap(state$m)
+      state$m <- NULL
+    }
+    invisible(NULL)
+  }
+
+  pull <- function(rows = NULL, cols = NULL) {
+    rows <- rows %||% seq_len(nrow)
+    cols <- cols %||% seq_len(ncol)
+
+    # mmap returns flat vector, need to extract as matrix
+    if (!is.null(state$m)) {
+      vec <- state$m[]
+    } else {
+      # One-off read without persistent mapping
+      m <- mmap::mmap(path, mode = mode)
+      on.exit(mmap::munmap(m))
+      vec <- m[]
+    }
+
+    # Reshape to matrix (column-major)
+    full_mat <- matrix(vec[seq_len(nrow * ncol)], nrow = nrow, ncol = ncol)
+    full_mat[rows, cols, drop = FALSE]
+  }
+
+  delarr_backend(
+    nrow = nrow,
+    ncol = ncol,
+    pull = pull,
+    begin = begin,
+    end = end
+  )
 }

@@ -238,6 +238,7 @@ d_where <- function(x, predicate, fill = 0) {
 #' @param na.rm Logical; remove missing values before averaging.
 #'
 #' @return A numeric vector of row means.
+#' @export
 rowMeans2.delarr <- function(x, ..., na.rm = FALSE) {
   res <- d_reduce(x, base::mean, dim = "rows", na.rm = na.rm)
   collect(res)
@@ -253,6 +254,7 @@ rowMeans2.delarr <- function(x, ..., na.rm = FALSE) {
 #' @param na.rm Logical; remove missing values before averaging.
 #'
 #' @return A numeric vector of column means.
+#' @export
 colMeans2.delarr <- function(x, ..., na.rm = FALSE) {
   res <- d_reduce(x, base::mean, dim = "cols", na.rm = na.rm)
   collect(res)
