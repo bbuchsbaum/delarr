@@ -10,8 +10,9 @@
 #'   this to size the target dataset up-front.
 #' @param chunk Integer vector of length two giving the chunk size
 #'   `(rows, cols)` for the target dataset (optional).
-#' @param compression Compression level passed to `hdf5r` (currently unused but
-#'   kept for forward compatibility).
+#' @param compression Gzip compression level (0-9). Use 0 for no compression,
+#'   higher values for better compression at cost of speed. Default is 4.
+#'   Use NULL to disable compression entirely.
 #'
 #' @return A writer object with `$write()` and `$finalize()` methods understood
 #'   by `collect()`.
@@ -42,7 +43,7 @@
 #'   # Clean up
 #'   unlink(c(tf_in, tf_out))
 #' }
-hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression = NULL) {
+hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression = 4L) {
   if (!requireNamespace("hdf5r", quietly = TRUE)) {
     stop("Package 'hdf5r' is required for hdf5_writer()", call. = FALSE)
   }
@@ -52,11 +53,20 @@ hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression
   if (!is.numeric(ncol) || length(ncol) != 1L || ncol < 1) {
     stop("ncol must be a positive integer", call. = FALSE)
   }
+  gzip_level <- NULL
+  if (!is.null(compression)) {
+    if (!is.numeric(compression) || length(compression) != 1L ||
+        compression < 0 || compression > 9) {
+      stop("compression must be NULL or an integer between 0 and 9", call. = FALSE)
+    }
+    gzip_level <- as.integer(compression)
+  }
   env <- new.env(parent = emptyenv())
   env$file <- NULL
   env$dset <- NULL
   env$nrow <- NULL
   env$ncol <- as.integer(ncol)
+  env$gzip_level <- gzip_level
 
   open_file <- function(mode = "a") {
     if (is.null(env$file)) {
@@ -78,7 +88,8 @@ hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression
     env$dset <- env$file$create_dataset(
       name = dataset,
       robj = empty,
-      chunk = as.integer(chunk)
+      chunk_dims = as.integer(chunk),
+      gzip_level = env$gzip_level
     )
   }
 
