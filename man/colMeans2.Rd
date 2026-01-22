@@ -19,3 +19,13 @@ Generic counterpart to \code{matrixStats::colMeans2()}. Methods are provided for
 \code{delarr} objects, but packages can extend the generic for their own delayed
 types.
 }
+\examples{
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+darr <- delarr(mat)
+
+# Compute column means lazily
+colMeans2(darr)
+
+# Compare with base R
+colMeans(mat)
+}

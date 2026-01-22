@@ -9,6 +9,15 @@
 #'
 #' @return Typically a numeric vector of row means.
 #' @export
+#' @examples
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr(mat)
+#'
+#' # Compute row means lazily
+#' rowMeans2(darr)
+#'
+#' # Compare with base R
+#' rowMeans(mat)
 rowMeans2 <- function(x, ...) {
   UseMethod("rowMeans2")
 }
@@ -23,6 +32,15 @@ rowMeans2 <- function(x, ...) {
 #'
 #' @return Typically a numeric vector of column means.
 #' @export
+#' @examples
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr(mat)
+#'
+#' # Compute column means lazily
+#' colMeans2(darr)
+#'
+#' # Compare with base R
+#' colMeans(mat)
 colMeans2 <- function(x, ...) {
   UseMethod("colMeans2")
 }
