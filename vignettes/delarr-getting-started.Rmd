@@ -116,30 +116,24 @@ data chunk-by-chunk. The `compression` parameter controls gzip compression level
 (0-9, with 4 as a good default balance of speed and size).
 
 ```{r hdf5, eval=knitr::is_html_output(), message=FALSE}
-if (requireNamespace("hdf5r", quietly = TRUE)) {
-  tf_in <- tempfile(fileext = ".h5")
-  on.exit(unlink(tf_in), add = TRUE)
-  input <- matrix(runif(30), 5, 6)
-  f <- hdf5r::H5File$new(tf_in, mode = "w")
-  f$create_dataset("X", robj = input)
-  f$close_all()
+# Create test data in an HDF5 file
+tf_in <- tempfile(fileext = ".h5")
+input <- matrix(runif(30), 5, 6)
+write_hdf5(input, tf_in, "X")
 
-  X <- delarr_hdf5(tf_in, "X")
-  centred <- X |> d_center("cols")
+# Load lazily, transform, and stream to a new file
+X <- delarr_hdf5(tf_in, "X")
+centred <- X |> d_center("cols")
 
-  tf_out <- tempfile(fileext = ".h5")
-  on.exit(unlink(tf_out), add = TRUE)
-  writer <- hdf5_writer(tf_out, "X_centered", ncol = dim(centred)[2])
-  collect(centred, into = writer, chunk_size = 3L)
+tf_out <- tempfile(fileext = ".h5")
+writer <- hdf5_writer(tf_out, "X_centered", ncol = ncol(centred))
+collect(centred, into = writer)
 
-  g <- hdf5r::H5File$new(tf_out, mode = "r")
-  centred_back <- g[["X_centered"]]$read()
-  g$close_all()
+# Verify the result
+read_hdf5(tf_out, "X_centered")
 
-  centred_back
-} else {
-  "Install the 'hdf5r' package to run the streaming example."
-}
+# Clean up
+unlink(c(tf_in, tf_out))
 ```
 
 ## Custom backends with `delarr_seed()`

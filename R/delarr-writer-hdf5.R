@@ -1,3 +1,70 @@
+#' Write a matrix to an HDF5 file
+#'
+#' Simple convenience function to write a matrix to an HDF5 dataset. For
+#' streaming writes during `collect()`, use `hdf5_writer()` instead.
+#'
+#' @param x A matrix to write.
+#' @param path Path to the HDF5 file. Created if it doesn't exist.
+#' @param dataset Name of the dataset to create.
+#' @param compression Gzip compression level (0-9), or NULL for no compression.
+#'
+#' @return The path to the HDF5 file (invisibly).
+#' @export
+#' @examples
+#' # Write a matrix to HDF5
+#' mat <- matrix(1:20, nrow = 4, ncol = 5)
+#' tf <- tempfile(fileext = ".h5")
+#' write_hdf5(mat, tf, "X")
+#'
+#' # Read it back as a delarr
+#' darr <- delarr_hdf5(tf, "X")
+#' collect(darr)
+#'
+#' # Clean up
+#' unlink(tf)
+write_hdf5 <- function(x, path, dataset, compression = 4L) {
+  if (!is.matrix(x)) {
+    stop("x must be a matrix", call. = FALSE)
+  }
+  gzip_level <- NULL
+  if (!is.null(compression)) {
+    if (!is.numeric(compression) || length(compression) != 1L ||
+        compression < 0 || compression > 9) {
+      stop("compression must be NULL or an integer between 0 and 9", call. = FALSE)
+    }
+    gzip_level <- as.integer(compression)
+  }
+  f <- hdf5r::H5File$new(path, mode = "w")
+  on.exit(f$close_all(), add = TRUE)
+  f$create_dataset(name = dataset, robj = x, gzip_level = gzip_level)
+  invisible(path)
+}
+
+#' Read a matrix from an HDF5 file
+#'
+#' Simple convenience function to read a matrix from an HDF5 dataset. For
+#' lazy/streaming access, use `delarr_hdf5()` instead.
+#'
+#' @param path Path to the HDF5 file.
+#' @param dataset Name of the dataset to read.
+#'
+#' @return The matrix stored in the dataset.
+#' @export
+#' @examples
+#' # Write and read back
+#' mat <- matrix(1:20, nrow = 4, ncol = 5)
+#' tf <- tempfile(fileext = ".h5")
+#' write_hdf5(mat, tf, "X")
+#' read_hdf5(tf, "X")
+#'
+#' # Clean up
+#' unlink(tf)
+read_hdf5 <- function(path, dataset) {
+  f <- hdf5r::H5File$new(path, mode = "r")
+  on.exit(f$close_all(), add = TRUE)
+  f[[dataset]]$read()
+}
+
 #' HDF5 writer for streaming `collect()`
 #'
 #' Creates or extends an HDF5 dataset so that `collect(x, into = writer)` can
