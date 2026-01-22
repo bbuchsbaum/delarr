@@ -77,6 +77,12 @@ result <- arr |>
 result
 ```
 
+The pipeline above:
+
+1. **`d_center(dim = "rows")`** — subtracts each row's mean (operates across columns within each row)
+2. **`d_map(~ .x * 0.5)`** — multiplies every element by 0.5 (elementwise, no row/column orientation)
+3. **`d_reduce(mean, dim = "rows")`** — computes the mean of each row, collapsing to a single column
+
 ## Broadcasting and binary operations
 
 Binary operations (`d_map2()` or arithmetic operators) remain lazy and support
