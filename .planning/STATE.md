@@ -13,25 +13,25 @@
 
 ## Current Position
 
-**Phase:** 2 of 4 (Code Quality)
-**Plan:** 02-05 complete
-**Status:** Phase 2 complete (5/5 plans complete)
-**Last activity:** 2026-01-22 - Completed 02-05-PLAN.md (final validation & quality gate)
+**Phase:** 3 of 4 (Platform Readiness)
+**Plan:** 03-01 complete
+**Status:** Phase 3 in progress (1/4 plans complete)
+**Last activity:** 2026-01-22 - Completed 03-01-PLAN.md (dependency promotion)
 
 **Progress:**
 ```
-[████████████████████] 100% (11/11 plans)
+[██████████████████░░] 86% (12/14 plans)
 
 Phase 1: Baseline & Documentation    [██████████] 6/6 ✓
 Phase 2: Code Quality                [██████████] 5/5 ✓
-Phase 3: Platform Readiness          [░░░░░░░░░░] 0/0 (not planned yet)
-Phase 4: Submission                  [░░░░░░░░░░] 0/0 (not planned yet)
+Phase 3: Platform Readiness          [██░░░░░░░░] 1/4
+Phase 4: Submission                  [░░░░░░░░░░] 0/3 (not started)
 ```
 
 ## Performance Metrics
 
-**Velocity:** 1.2 min/task (11 plans, 19 tasks, 19m 21s total)
-**Quality:** Clean execution (2 deviations, 0 issues, 17 atomic commits)
+**Velocity:** 1.0 min/task (12 plans, 21 tasks, 21m 31s total)
+**Quality:** Clean execution (2 deviations, 0 issues, 19 atomic commits)
 
 **Blockers:** None
 
@@ -63,6 +63,8 @@ Phase 4: Submission                  [░░░░░░░░░░] 0/0 (not p
 | File size validation before mmap | Prevents cryptic errors by checking file size matches expected dimensions | 2026-01-22 (02-03) |
 | HDF5 tests fail (not skip) when hdf5r unavailable | User requirement: hdf5r is a real dependency for full test suite | 2026-01-22 (02-05) |
 | DELARR_SKIP_HDF5 environment variable escape hatch | Allows CI environments without HDF5 support to skip tests explicitly | 2026-01-22 (02-05) |
+| hdf5r and mmap promoted to Imports | User decided these are required dependencies, not optional | 2026-01-22 (03-01) |
+| Removed defensive requireNamespace checks for Imports dependencies | Imports guarantees availability at runtime | 2026-01-22 (03-01) |
 
 ### Known Issues
 
@@ -96,8 +98,8 @@ From codebase mapping and requirements:
 - [x] Close DOCS-03 gap (delarr_seed @examples)
 - [x] Plan Phase 2: Code Quality (plans 02-01 through 02-05 complete)
 - [x] Execute Phase 2: All 5 plans executed, verified, and complete
-- [ ] Plan Phase 3: Platform Readiness
-- [ ] Execute Phase 3
+- [x] Plan Phase 3: Platform Readiness (plans 03-01 through 03-04 complete)
+- [ ] Execute Phase 3 (1/4 plans complete: 03-01 ✓)
 
 ### Research Notes
 
@@ -112,10 +114,10 @@ From research/SUMMARY.md:
 ## Session Continuity
 
 **Last session:** 2026-01-22
-**Stopped at:** Completed Phase 2: Code Quality (all 5 plans executed, verified)
+**Stopped at:** Completed 03-01-PLAN.md (dependency promotion)
 **Resume file:** None
 
-**Next Action:** Plan Phase 3: Platform Readiness
+**Next Action:** Execute 03-02-PLAN.md (optional dependency tests)
 
 **Context for Next Session:**
 - Phase 1 COMPLETE: All 6 plans executed, goal verified (12/12 requirements)
@@ -126,8 +128,10 @@ From research/SUMMARY.md:
   - CODE-04: delarr_mmap() fully implemented with mmap package ✓
   - TEST-01 through TEST-06: All test requirements met ✓
   - 105 tests pass, R CMD check: 0/0/0
-- Overall: 22/30 requirements complete (73%)
-- Ready for Phase 3: Platform Readiness (DEP-*, PLAT-*)
+- Phase 3 IN PROGRESS: 1/4 plans complete
+  - 03-01: hdf5r and mmap moved to Imports ✓
+- Overall: 24/30 requirements complete (80%)
+- Next: Test optional dependency handling (matrixStats)
 
 **Open Questions:** None
 
