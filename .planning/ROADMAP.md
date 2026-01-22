@@ -16,6 +16,15 @@ Prepare the delarr package for initial CRAN submission by ensuring R CMD check c
 
 **Dependencies:** None (starting phase)
 
+**Plans:** 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Fix R CMD check NOTEs (LICENSE stub, .Rbuildignore)
+- [ ] 01-02-PLAN.md — Add @examples to core functions (delarr, collect, d_map, d_map2, d_reduce, block_apply)
+- [ ] 01-03-PLAN.md — Add @examples to transformation verbs (d_center, d_scale, d_zscore, d_detrend, d_where) and generics
+- [ ] 01-04-PLAN.md — Add @examples to HDF5 and backend functions (delarr_hdf5, hdf5_writer, delarr_backend, delarr_mem, delarr_mmap)
+- [ ] 01-05-PLAN.md — Run spelling check, final R CMD check validation
+
 **Requirements:**
 - CHECK-01: R CMD check passes with 0 errors
 - CHECK-02: R CMD check passes with 0 warnings
@@ -24,7 +33,7 @@ Prepare the delarr package for initial CRAN submission by ensuring R CMD check c
 - DOCS-01: Every exported function has @param for all parameters
 - DOCS-02: Every exported function has @return documenting return value
 - DOCS-03: Every exported function has runnable @examples
-- DOCS-04: No \\dontrun{} shortcuts (use \\donttest{} if needed)
+- DOCS-04: No \dontrun{} shortcuts (use \donttest{} if needed)
 - DOCS-05: All examples with file I/O use tempdir()
 - DOCS-06: Vignette builds without errors
 - DOCS-07: Spelling passes (spelling::spell_check_package())
@@ -44,6 +53,8 @@ Prepare the delarr package for initial CRAN submission by ensuring R CMD check c
 **Goal:** Fix bugs, resolve tech debt, and establish comprehensive test coverage
 
 **Dependencies:** Phase 1 (clean baseline required before adding tests)
+
+**Plans:** (created by /gsd:plan-phase)
 
 **Requirements:**
 - CODE-01: Fix all-NA reduction bug (mean of all-NA should return NA, not NaN)
@@ -72,10 +83,12 @@ Prepare the delarr package for initial CRAN submission by ensuring R CMD check c
 
 **Dependencies:** Phase 2 (code must be correct before platform testing)
 
+**Plans:** (created by /gsd:plan-phase)
+
 **Requirements:**
 - DEP-01: All hdf5r usage wrapped in requireNamespace() checks
 - DEP-02: Graceful error messages when HDF5 unavailable
-- DEP-03: Examples using HDF5 in \\donttest{} or conditional blocks
+- DEP-03: Examples using HDF5 in \donttest{} or conditional blocks
 - DEP-04: Vignette handles missing hdf5r gracefully
 - PLAT-01: Pass win-builder R-devel check
 - PLAT-02: Pass win-builder R-release check
@@ -85,7 +98,7 @@ Prepare the delarr package for initial CRAN submission by ensuring R CMD check c
 1. All hdf5r function calls wrapped in `if (requireNamespace("hdf5r", quietly = TRUE))`
 2. When hdf5r unavailable, informative error messages guide users (not cryptic failures)
 3. Package loads and core non-HDF5 functionality works without hdf5r installed
-4. Examples involving HDF5 are conditional or in \\donttest{} blocks
+4. Examples involving HDF5 are conditional or in \donttest{} blocks
 5. Vignette builds successfully even when hdf5r unavailable (conditional chunks)
 6. win-builder checks (R-devel and R-release) pass with 0 errors, 0 warnings
 7. Package installs and tests pass on Windows, macOS, and Linux
@@ -95,6 +108,8 @@ Prepare the delarr package for initial CRAN submission by ensuring R CMD check c
 **Goal:** Finalize submission artifacts and submit to CRAN
 
 **Dependencies:** Phase 3 (all quality gates passed)
+
+**Plans:** (created by /gsd:plan-phase)
 
 **Requirements:**
 - SUB-01: Create NEWS.md with initial release notes
@@ -116,7 +131,7 @@ Prepare the delarr package for initial CRAN submission by ensuring R CMD check c
 
 | Phase | Status | Progress | Requirements |
 |-------|--------|----------|--------------|
-| 1 - Baseline & Documentation | Pending | 0% | 12 requirements |
+| 1 - Baseline & Documentation | Planned | 0% | 12 requirements |
 | 2 - Code Quality | Pending | 0% | 10 requirements |
 | 3 - Platform Readiness | Pending | 0% | 7 requirements |
 | 4 - Submission | Pending | 0% | 5 requirements |
