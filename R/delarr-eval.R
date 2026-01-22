@@ -119,16 +119,38 @@ apply_reduce_full <- function(mat, reduce_op) {
   fn <- reduce_op$fn
   na_rm <- reduce_op$na_rm %||% FALSE
   if (identical(fn, base::sum)) {
-    return(apply(mat, margin, sum, na.rm = na_rm))
+    result <- apply(mat, margin, sum, na.rm = na_rm)
+    # When na.rm=TRUE and all values are NA, sum should return NA not 0
+    if (na_rm) {
+      all_na <- apply(mat, margin, function(x) all(is.na(x)))
+      result[all_na] <- NA_real_
+    }
+    return(result)
   }
   if (identical(fn, base::mean)) {
-    return(apply(mat, margin, mean, na.rm = na_rm))
+    result <- apply(mat, margin, mean, na.rm = na_rm)
+    # When na.rm=TRUE and all values are NA, mean should return NA not NaN
+    if (na_rm) {
+      all_na <- apply(mat, margin, function(x) all(is.na(x)))
+      result[all_na] <- NA_real_
+    }
+    return(result)
   }
   if (identical(fn, base::min)) {
-    return(apply(mat, margin, min, na.rm = na_rm))
+    result <- apply(mat, margin, min, na.rm = na_rm)
+    # When na.rm=TRUE and all values are NA, min returns Inf - should be NA
+    if (na_rm) {
+      result[is.infinite(result)] <- NA_real_
+    }
+    return(result)
   }
   if (identical(fn, base::max)) {
-    return(apply(mat, margin, max, na.rm = na_rm))
+    result <- apply(mat, margin, max, na.rm = na_rm)
+    # When na.rm=TRUE and all values are NA, max returns -Inf - should be NA
+    if (na_rm) {
+      result[is.infinite(result)] <- NA_real_
+    }
+    return(result)
   }
   formals_fn <- tryCatch(names(formals(fn)), error = function(e) character())
   if (na_rm && "na.rm" %in% formals_fn) {
