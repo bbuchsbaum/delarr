@@ -19,12 +19,12 @@ Prepare the delarr package for initial CRAN submission by ensuring R CMD check c
 **Plans:** 6 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Fix R CMD check NOTEs (LICENSE stub, .Rbuildignore)
-- [ ] 01-02-PLAN.md — Add @examples to core functions (delarr, collect, d_map, d_map2, d_reduce, block_apply)
-- [ ] 01-03-PLAN.md — Add @examples to transformation verbs (d_center, d_scale, d_zscore, d_detrend, d_where) and generics
-- [ ] 01-04-PLAN.md — Add @examples to HDF5 and backend functions (delarr_hdf5, hdf5_writer, delarr_backend, delarr_mem, delarr_mmap)
-- [ ] 01-05-PLAN.md — Run spelling check, final R CMD check validation
-- [ ] 01-06-PLAN.md — Add @examples to delarr_seed() (gap closure)
+- [x] 01-01-PLAN.md — Fix R CMD check NOTEs (LICENSE stub, .Rbuildignore)
+- [x] 01-02-PLAN.md — Add @examples to core functions (delarr, collect, d_map, d_map2, d_reduce, block_apply)
+- [x] 01-03-PLAN.md — Add @examples to transformation verbs (d_center, d_scale, d_zscore, d_detrend, d_where) and generics
+- [x] 01-04-PLAN.md — Add @examples to HDF5 and backend functions (delarr_hdf5, hdf5_writer, delarr_backend, delarr_mem, delarr_mmap)
+- [x] 01-05-PLAN.md — Run spelling check, final R CMD check validation
+- [x] 01-06-PLAN.md — Add @examples to delarr_seed() (gap closure)
 
 **Requirements:**
 - CHECK-01: R CMD check passes with 0 errors
@@ -132,12 +132,12 @@ Plans:
 
 | Phase | Status | Progress | Requirements |
 |-------|--------|----------|--------------|
-| 1 - Baseline & Documentation | In Progress | 92% | 12 requirements |
+| 1 - Baseline & Documentation | ✓ Complete | 100% | 12 requirements |
 | 2 - Code Quality | Pending | 0% | 10 requirements |
 | 3 - Platform Readiness | Pending | 0% | 7 requirements |
 | 4 - Submission | Pending | 0% | 5 requirements |
 
-**Overall:** 11/30 requirements complete (37%)
+**Overall:** 12/30 requirements complete (40%)
 
 ## Key Decisions
 

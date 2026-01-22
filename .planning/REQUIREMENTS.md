@@ -9,21 +9,21 @@ Requirements for CRAN submission. Each maps to roadmap phases.
 
 ### R CMD Check Compliance
 
-- [ ] **CHECK-01**: R CMD check --as-cran passes with 0 errors
-- [ ] **CHECK-02**: R CMD check --as-cran passes with 0 warnings
-- [ ] **CHECK-03**: R CMD check --as-cran passes with 0 notes (or explained)
-- [ ] **CHECK-04**: All examples complete in <5 seconds each
+- [x] **CHECK-01**: R CMD check --as-cran passes with 0 errors
+- [x] **CHECK-02**: R CMD check --as-cran passes with 0 warnings
+- [x] **CHECK-03**: R CMD check --as-cran passes with 0 notes (or explained)
+- [x] **CHECK-04**: All examples complete in <5 seconds each
 
 ### Documentation
 
-- [ ] **DOCS-01**: Every exported function has @param for all parameters
-- [ ] **DOCS-02**: Every exported function has @return documenting return value
-- [ ] **DOCS-03**: Every exported function has runnable @examples
-- [ ] **DOCS-04**: No \\dontrun{} shortcuts (use \\donttest{} if needed)
-- [ ] **DOCS-05**: All examples with file I/O use tempdir()
-- [ ] **DOCS-06**: Vignette builds without errors
-- [ ] **DOCS-07**: Spelling passes (spelling::spell_check_package())
-- [ ] **DOCS-08**: All URLs valid (urlchecker::url_check())
+- [x] **DOCS-01**: Every exported function has @param for all parameters
+- [x] **DOCS-02**: Every exported function has @return documenting return value
+- [x] **DOCS-03**: Every exported function has runnable @examples
+- [x] **DOCS-04**: No \\dontrun{} shortcuts (use \\donttest{} if needed)
+- [x] **DOCS-05**: All examples with file I/O use tempdir()
+- [x] **DOCS-06**: Vignette builds without errors
+- [x] **DOCS-07**: Spelling passes (spelling::spell_check_package())
+- [x] **DOCS-08**: All URLs valid (urlchecker::url_check())
 
 ### Code Correctness
 
@@ -98,18 +98,18 @@ Explicitly excluded from this milestone:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CHECK-01 | Phase 1 | Pending |
-| CHECK-02 | Phase 1 | Pending |
-| CHECK-03 | Phase 1 | Pending |
-| CHECK-04 | Phase 1 | Pending |
-| DOCS-01 | Phase 1 | Pending |
-| DOCS-02 | Phase 1 | Pending |
-| DOCS-03 | Phase 1 | Pending |
-| DOCS-04 | Phase 1 | Pending |
-| DOCS-05 | Phase 1 | Pending |
-| DOCS-06 | Phase 1 | Pending |
-| DOCS-07 | Phase 1 | Pending |
-| DOCS-08 | Phase 1 | Pending |
+| CHECK-01 | Phase 1 | Complete |
+| CHECK-02 | Phase 1 | Complete |
+| CHECK-03 | Phase 1 | Complete |
+| CHECK-04 | Phase 1 | Complete |
+| DOCS-01 | Phase 1 | Complete |
+| DOCS-02 | Phase 1 | Complete |
+| DOCS-03 | Phase 1 | Complete |
+| DOCS-04 | Phase 1 | Complete |
+| DOCS-05 | Phase 1 | Complete |
+| DOCS-06 | Phase 1 | Complete |
+| DOCS-07 | Phase 1 | Complete |
+| DOCS-08 | Phase 1 | Complete |
 | CODE-01 | Phase 2 | Pending |
 | CODE-02 | Phase 2 | Pending |
 | CODE-03 | Phase 2 | Pending |
