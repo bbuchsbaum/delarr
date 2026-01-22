@@ -17,3 +17,16 @@ A \code{delarr} representing the transformation.
 \description{
 Apply an elementwise transformation lazily
 }
+\examples{
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+darr <- delarr(mat)
+
+# Apply elementwise transformation with formula
+squared <- darr |> d_map(~ .x^2) |> collect()
+squared
+
+# Apply with function
+logged <- darr |> d_map(log1p) |> collect()
+logged
+
+}

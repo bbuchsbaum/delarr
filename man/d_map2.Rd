@@ -19,3 +19,18 @@ A \code{delarr} representing the fused binary operation.
 \description{
 Apply a binary elementwise transformation lazily
 }
+\examples{
+mat1 <- matrix(1:12, nrow = 3, ncol = 4)
+mat2 <- matrix(12:1, nrow = 3, ncol = 4)
+darr1 <- delarr(mat1)
+darr2 <- delarr(mat2)
+
+# Binary operation between two delayed matrices
+added <- d_map2(darr1, darr2, ~ .x + .y) |> collect()
+added
+
+# Binary operation with scalar
+scaled <- d_map2(darr1, 10, ~ .x * .y) |> collect()
+scaled
+
+}

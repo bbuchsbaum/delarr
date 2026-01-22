@@ -4,6 +4,19 @@
 #' @param f A function or formula suitable for `rlang::as_function()`.
 #'
 #' @return A `delarr` representing the transformation.
+#'
+#' @examples
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr(mat)
+#'
+#' # Apply elementwise transformation with formula
+#' squared <- darr |> d_map(~ .x^2) |> collect()
+#' squared
+#'
+#' # Apply with function
+#' logged <- darr |> d_map(log1p) |> collect()
+#' logged
+#'
 #' @export
 d_map <- function(x, f) {
   stopifnot(inherits(x, "delarr"))
@@ -18,6 +31,21 @@ d_map <- function(x, f) {
 #' @param f A function or formula combining two arguments.
 #'
 #' @return A `delarr` representing the fused binary operation.
+#'
+#' @examples
+#' mat1 <- matrix(1:12, nrow = 3, ncol = 4)
+#' mat2 <- matrix(12:1, nrow = 3, ncol = 4)
+#' darr1 <- delarr(mat1)
+#' darr2 <- delarr(mat2)
+#'
+#' # Binary operation between two delayed matrices
+#' added <- d_map2(darr1, darr2, ~ .x + .y) |> collect()
+#' added
+#'
+#' # Binary operation with scalar
+#' scaled <- d_map2(darr1, 10, ~ .x * .y) |> collect()
+#' scaled
+#'
 #' @export
 d_map2 <- function(x, y, f) {
   stopifnot(inherits(x, "delarr"))
@@ -36,6 +64,19 @@ d_map2 <- function(x, y, f) {
 #' @param na.rm Logical; remove missing values while reducing.
 #'
 #' @return A `delarr` capturing the reduction.
+#'
+#' @examples
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr(mat)
+#'
+#' # Row sums (reduce across columns for each row)
+#' row_sums <- darr |> d_reduce(sum, dim = "rows") |> collect()
+#' row_sums
+#'
+#' # Column means (reduce across rows for each column)
+#' col_means <- darr |> d_reduce(mean, dim = "cols") |> collect()
+#' col_means
+#'
 #' @export
 d_reduce <- function(x, f = base::sum, dim = c("rows", "cols"), na.rm = FALSE) {
   stopifnot(inherits(x, "delarr"))

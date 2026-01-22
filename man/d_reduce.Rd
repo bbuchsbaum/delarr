@@ -21,3 +21,16 @@ A \code{delarr} capturing the reduction.
 \description{
 Reduce along rows or columns lazily
 }
+\examples{
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+darr <- delarr(mat)
+
+# Row sums (reduce across columns for each row)
+row_sums <- darr |> d_reduce(sum, dim = "rows") |> collect()
+row_sums
+
+# Column means (reduce across rows for each column)
+col_means <- darr |> d_reduce(mean, dim = "cols") |> collect()
+col_means
+
+}
