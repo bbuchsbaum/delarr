@@ -13,6 +13,26 @@
 #' @param end Optional function invoked after streaming completes.
 #'
 #' @return An object of class `delarr_seed`.
+#'
+#' @examples
+#' # Create a custom seed with a pull function
+#' data <- matrix(1:12, nrow = 3, ncol = 4)
+#'
+#' seed <- delarr_seed(
+#'   nrow = 3,
+#'   ncol = 4,
+#'   pull = function(rows = NULL, cols = NULL) {
+#'     rows <- rows %||% seq_len(3)
+#'     cols <- cols %||% seq_len(4)
+#'     data[rows, cols, drop = FALSE]
+#'   }
+#' )
+#' seed
+#'
+#' # Wrap in delarr() to use with lazy operations
+#' darr <- delarr(seed)
+#' result <- darr |> d_map(~ .x * 2) |> collect()
+#' result
 #' @export
 delarr_seed <- function(nrow, ncol, pull, chunk_hint = NULL, dimnames = NULL,
                         begin = NULL, end = NULL) {
