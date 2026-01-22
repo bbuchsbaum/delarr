@@ -52,9 +52,6 @@ hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression
   if (!is.numeric(ncol) || length(ncol) != 1L || ncol < 1) {
     stop("ncol must be a positive integer", call. = FALSE)
   }
-  if (length(chunk) != 2L) {
-    stop("chunk must be a length-2 integer vector", call. = FALSE)
-  }
   env <- new.env(parent = emptyenv())
   env$file <- NULL
   env$dset <- NULL
