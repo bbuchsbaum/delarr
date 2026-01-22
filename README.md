@@ -79,15 +79,6 @@ pull function; no extra dependencies ship in the core package.
 All verbs return another `delarr`, so pipelines stay lazy until `collect()`
 materialises the result.
 
-## Integration with fmridataset
-
-`delarr_backend()` mirrors the contract of the existing DelayedArray seeds in
-*fmridataset*: provide `backend_get_dims()` and `backend_get_data()` style
-functions, and wrap them in a simple pull closure. Replacing the S4 seeds with
-`as_delarr()` methods becomes a matter of creating `delarr_backend()` objects
-and updating call sites to rely on matrix-style subsetting, streaming
-`collect()`, and `d_reduce()` for materialisation.
-
 ## Testing
 
 The test suite exercises the core class, slicing, verb fusion, reductions,

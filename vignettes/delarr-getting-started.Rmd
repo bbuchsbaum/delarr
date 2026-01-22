@@ -20,11 +20,18 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-`delarr` is a tiny, pipe-friendly delayed matrix type for R. It keeps the
-surface area deliberately small—one S3 class plus a handful of verbs—while still
-supporting fused transformations, streaming reductions, and on-disk backends.
-This vignette walks through the essentials and shows how to stream results back
-to HDF5 without pulling everything into memory.
+`delarr` is a lightweight delayed matrix type for R designed for datasets that
+are too large to fit comfortably in memory. Rather than loading an entire matrix
+at once, `delarr` keeps data on disk (or in any external storage) and streams it
+through your analysis pipeline in manageable chunks.
+The package keeps its surface area deliberately small—one S3 class plus a
+handful of verbs—while still supporting fused transformations, streaming
+reductions, and pluggable backends. Operations are lazy: they build up a
+pipeline of work that only executes when you call `collect()`. This lets you
+chain multiple transformations without intermediate allocations.
+This vignette walks through the essentials: creating delayed arrays, building
+lazy pipelines, streaming to and from HDF5 files, and writing custom backends
+for your own storage formats.
 
 ## Installation
 
@@ -45,7 +52,16 @@ library(delarr)
 ## A first lazy pipeline
 
 The core constructor `delarr()` wraps an existing matrix (or a seed backend).
-The verbs operate lazily until you call `collect()`.
+All transformation verbs—`d_map()`, `d_center()`, `d_scale()`, etc.—return a new
+`delarr` without actually computing anything. The operations are recorded and
+fused together, then executed in a single pass when you call `collect()`.
+
+This lazy evaluation has two major benefits:
+
+1. **Memory efficiency**: Intermediate results are never materialised. A chain
+   of ten transformations uses the same memory as one.
+2. **Streaming**: When backed by on-disk storage, data flows through the
+   pipeline in chunks, so you can process datasets larger than RAM.
 
 ```{r lazy-pipeline}
 set.seed(1)
@@ -64,7 +80,12 @@ result
 ## Broadcasting and binary operations
 
 Binary operations (`d_map2()` or arithmetic operators) remain lazy and support
-broadcasting of scalars and row/column vectors.
+broadcasting of scalars and row/column vectors. When you add a vector to a
+matrix, `delarr` automatically determines whether it should broadcast across
+rows or columns based on the vector length.
+This makes common operations like subtracting row means or scaling by column
+standard deviations simple and memory-efficient—the bias/scale vectors are
+applied on-the-fly as each chunk streams through.
 
 ```{r broadcasting}
 row_bias <- rnorm(nrow(mat))
@@ -78,9 +99,15 @@ delarr(mat) |>
 
 ## Streaming to HDF5
 
-`delarr_hdf5()` exposes an HDF5 dataset lazily, opening the file only once per
-`collect()`. Pair it with `hdf5_writer()` to stream the output back to disk in
-manageable column chunks.
+HDF5 is a popular format for storing large numerical arrays on disk. The
+`delarr_hdf5()` function creates a delayed array backed by an HDF5 dataset,
+opening the file only when `collect()` executes and closing it immediately
+after.
+
+To write results back to disk without loading the full matrix into memory, pair
+your pipeline with `hdf5_writer()`. This creates a streaming sink that receives
+data chunk-by-chunk. The `compression` parameter controls gzip compression level
+(0-9, with 4 as a good default balance of speed and size).
 
 ```{r hdf5, eval=knitr::is_html_output(), message=FALSE}
 if (requireNamespace("hdf5r", quietly = TRUE)) {
@@ -109,10 +136,20 @@ if (requireNamespace("hdf5r", quietly = TRUE)) {
 }
 ```
 
-## Custom backends with `delarr_backend()`
+## Custom backends with `delarr_seed()`
 
-Any storage layer that can provide a `(rows, cols) -> matrix` pull function can
-become a `delarr` backend. The adapter below wraps a simple list interface.
+The real power of `delarr` comes from its pluggable backend system. Any storage
+layer—databases, cloud storage, memory-mapped files, or custom binary
+formats—can become a `delarr` backend by implementing a simple contract:
+
+1. **Dimensions**: Know the total number of rows and columns
+
+2. **Pull function**: Given row and column indices, return the corresponding
+   submatrix
+
+The `delarr_seed()` function wraps these two pieces into a seed object that
+`delarr()` understands. The pull function is called lazily during `collect()`,
+receiving only the indices needed for the current chunk.
 
 ```{r custom-backend}
 random_backend <- list(
@@ -136,17 +173,29 @@ rand_arr |>
   collect()
 ```
 
-## Testing and next steps
+## Available verbs
 
-The test suite covers lazy fusion, streaming reductions, the HDF5 backend, and
-the writer interface. Run it locally with:
+`delarr` provides a focused set of transformation verbs:
+- **`d_map()`** / **`d_map2()`**: Elementwise transformations using formula or
+  function syntax
+- **`d_center()`** / **`d_scale()`** / **`d_zscore()`**: Common preprocessing
+  operations with row or column orientation
+- **`d_detrend()`**: Remove linear trends from rows or columns
+- **`d_where()`**: Masked updates—apply changes only where a condition holds
+- **`d_reduce()`**: Row-wise or column-wise reductions (sum, mean, min, max, or
+  custom functions)
 
-```r
-pkgload::load_all(".")
-testthat::test_dir("tests/testthat")
-```
+All verbs return a new `delarr`, so you can chain them freely. The operations
+fuse together and execute in a single streaming pass.
 
-For ideas on extending `delarr`, see the roadmap in the README. Common next
-steps include companion packages for specific backends (e.g., memory-mapped
-files), sparse adapters, or additional documentation such as performance
-benchmarks.
+## When to use delarr
+`delarr` is a good fit when:
+
+- Your data is larger than available RAM
+- You need to apply the same pipeline to many datasets
+- You want streaming I/O without writing explicit chunking loops
+- You prefer a simple, pipe-friendly API over S4 complexity
+
+For sparse matrices, GPU acceleration, or parallel distributed computing,
+consider specialised packages. `delarr` focuses on doing one thing well:
+efficient lazy operations on dense, out-of-core matrices.
