@@ -114,24 +114,24 @@ Explicitly excluded from this milestone:
 | CODE-02 | Phase 2 | Pending |
 | CODE-03 | Phase 2 | Pending |
 | CODE-04 | Phase 2 | Pending |
-| TEST-01 | Phase 3 | Pending |
-| TEST-02 | Phase 3 | Pending |
-| TEST-03 | Phase 3 | Pending |
-| TEST-04 | Phase 3 | Pending |
-| TEST-05 | Phase 3 | Pending |
-| TEST-06 | Phase 3 | Pending |
+| TEST-01 | Phase 2 | Pending |
+| TEST-02 | Phase 2 | Pending |
+| TEST-03 | Phase 2 | Pending |
+| TEST-04 | Phase 2 | Pending |
+| TEST-05 | Phase 2 | Pending |
+| TEST-06 | Phase 2 | Pending |
 | DEP-01 | Phase 3 | Pending |
 | DEP-02 | Phase 3 | Pending |
 | DEP-03 | Phase 3 | Pending |
 | DEP-04 | Phase 3 | Pending |
-| PLAT-01 | Phase 4 | Pending |
-| PLAT-02 | Phase 4 | Pending |
-| PLAT-03 | Phase 4 | Pending |
-| SUB-01 | Phase 5 | Pending |
-| SUB-02 | Phase 5 | Pending |
-| SUB-03 | Phase 5 | Pending |
-| SUB-04 | Phase 5 | Pending |
-| SUB-05 | Phase 5 | Pending |
+| PLAT-01 | Phase 3 | Pending |
+| PLAT-02 | Phase 3 | Pending |
+| PLAT-03 | Phase 3 | Pending |
+| SUB-01 | Phase 4 | Pending |
+| SUB-02 | Phase 4 | Pending |
+| SUB-03 | Phase 4 | Pending |
+| SUB-04 | Phase 4 | Pending |
+| SUB-05 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total
@@ -140,4 +140,4 @@ Explicitly excluded from this milestone:
 
 ---
 *Requirements defined: 2026-01-22*
-*Last updated: 2026-01-22 after initial definition*
+*Last updated: 2026-01-22 after roadmap creation*
