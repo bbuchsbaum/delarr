@@ -10,11 +10,11 @@ Description: Provides a lightweight delayed array abstraction with tidy-friendly
 License: MIT + file LICENSE
 Depends: R (>= 4.1)
 Imports:
-    rlang
+    rlang,
+    hdf5r,
+    mmap
 Suggests:
     matrixStats,
-    hdf5r,
-    mmap,
     testthat (>= 3.1.0),
     knitr,
     rmarkdown
