@@ -27,19 +27,19 @@ Requirements for CRAN submission. Each maps to roadmap phases.
 
 ### Code Correctness
 
-- [ ] **CODE-01**: Fix all-NA reduction bug (mean of all-NA should return NA, not NaN)
-- [ ] **CODE-02**: Remove duplicate validation in hdf5_writer() (lines 23-24 vs 29-30)
-- [ ] **CODE-03**: Implement compression parameter in hdf5_writer()
-- [ ] **CODE-04**: Implement delarr_mmap() memory-mapped backend
+- [x] **CODE-01**: Fix all-NA reduction bug (mean of all-NA should return NA, not NaN)
+- [x] **CODE-02**: Remove duplicate validation in hdf5_writer() (lines 23-24 vs 29-30)
+- [x] **CODE-03**: Implement compression parameter in hdf5_writer()
+- [x] **CODE-04**: Implement delarr_mmap() memory-mapped backend
 
 ### Test Coverage
 
-- [ ] **TEST-01**: Tests pass on R CMD check
-- [ ] **TEST-02**: Add tests for all-NA reduction edge case
-- [ ] **TEST-03**: Add tests for negative index edge cases
-- [ ] **TEST-04**: Add tests for broadcasting edge cases (ambiguous dimensions, NaN/Inf)
-- [ ] **TEST-05**: Add tests for chunk size boundary conditions
-- [ ] **TEST-06**: HDF5 tests skip gracefully when hdf5r unavailable
+- [x] **TEST-01**: Tests pass on R CMD check
+- [x] **TEST-02**: Add tests for all-NA reduction edge case
+- [x] **TEST-03**: Add tests for negative index edge cases
+- [x] **TEST-04**: Add tests for broadcasting edge cases (ambiguous dimensions, NaN/Inf)
+- [x] **TEST-05**: Add tests for chunk size boundary conditions
+- [x] **TEST-06**: HDF5 tests fail (not skip) when hdf5r unavailable with clear error message
 
 ### Optional Dependency Handling
 
@@ -110,16 +110,16 @@ Explicitly excluded from this milestone:
 | DOCS-06 | Phase 1 | Complete |
 | DOCS-07 | Phase 1 | Complete |
 | DOCS-08 | Phase 1 | Complete |
-| CODE-01 | Phase 2 | Pending |
-| CODE-02 | Phase 2 | Pending |
-| CODE-03 | Phase 2 | Pending |
-| CODE-04 | Phase 2 | Pending |
-| TEST-01 | Phase 2 | Pending |
-| TEST-02 | Phase 2 | Pending |
-| TEST-03 | Phase 2 | Pending |
-| TEST-04 | Phase 2 | Pending |
-| TEST-05 | Phase 2 | Pending |
-| TEST-06 | Phase 2 | Pending |
+| CODE-01 | Phase 2 | Complete |
+| CODE-02 | Phase 2 | Complete |
+| CODE-03 | Phase 2 | Complete |
+| CODE-04 | Phase 2 | Complete |
+| TEST-01 | Phase 2 | Complete |
+| TEST-02 | Phase 2 | Complete |
+| TEST-03 | Phase 2 | Complete |
+| TEST-04 | Phase 2 | Complete |
+| TEST-05 | Phase 2 | Complete |
+| TEST-06 | Phase 2 | Complete |
 | DEP-01 | Phase 3 | Pending |
 | DEP-02 | Phase 3 | Pending |
 | DEP-03 | Phase 3 | Pending |

@@ -58,11 +58,11 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Fix all-NA reduction bug, add reduction edge case tests
-- [ ] 02-02-PLAN.md — Clean up hdf5_writer() (remove duplicate validation, implement compression)
-- [ ] 02-03-PLAN.md — Resolve delarr_mmap() stub (implement or remove)
-- [ ] 02-04-PLAN.md — Add edge case tests (negative indices, chunk boundaries, broadcasting)
-- [ ] 02-05-PLAN.md — Final validation (HDF5 test policy, full test suite, R CMD check)
+- [x] 02-01-PLAN.md — Fix all-NA reduction bug, add reduction edge case tests
+- [x] 02-02-PLAN.md — Clean up hdf5_writer() (remove duplicate validation, implement compression)
+- [x] 02-03-PLAN.md — Resolve delarr_mmap() stub (implement or remove)
+- [x] 02-04-PLAN.md — Add edge case tests (negative indices, chunk boundaries, broadcasting)
+- [x] 02-05-PLAN.md — Final validation (HDF5 test policy, full test suite, R CMD check)
 
 **Requirements:**
 - CODE-01: Fix all-NA reduction bug (mean of all-NA should return NA, not NaN)
@@ -74,7 +74,7 @@ Plans:
 - TEST-03: Add tests for negative index edge cases
 - TEST-04: Add tests for broadcasting edge cases (ambiguous dimensions, NaN/Inf)
 - TEST-05: Add tests for chunk size boundary conditions
-- TEST-06: HDF5 tests skip gracefully when hdf5r unavailable
+- TEST-06: HDF5 tests fail (not skip) when hdf5r unavailable with clear error message
 
 **Success Criteria:**
 1. All-NA reduction operations return NA (not NaN) for mean/sum/max/min
@@ -83,7 +83,7 @@ Plans:
 4. delarr_mmap() is either implemented or removed from exports
 5. Test suite covers edge cases: all-NA inputs, negative indices, broadcasting boundaries, chunk size limits
 6. All tests pass locally and on R CMD check
-7. Tests skip gracefully with informative messages when hdf5r unavailable
+7. HDF5 tests fail with clear error message when hdf5r unavailable (provides env var escape hatch)
 
 ### Phase 3: Platform Readiness
 
@@ -140,19 +140,19 @@ Plans:
 | Phase | Status | Progress | Requirements |
 |-------|--------|----------|--------------|
 | 1 - Baseline & Documentation | Complete | 100% | 12 requirements |
-| 2 - Code Quality | Planned | 0% | 10 requirements |
+| 2 - Code Quality | Complete | 100% | 10 requirements |
 | 3 - Platform Readiness | Pending | 0% | 7 requirements |
 | 4 - Submission | Pending | 0% | 5 requirements |
 
-**Overall:** 12/30 requirements complete (40%)
+**Overall:** 22/30 requirements complete (73%)
 
 ## Key Decisions
 
 | Decision | Rationale | Phase |
 |----------|-----------|-------|
-| Compression parameter fate TBD | Either implement or remove; decision during Phase 2 | Phase 2 |
-| delarr_mmap() fate TBD | Either implement or remove from exports; decision during Phase 2 | Phase 2 |
-| hdf5r is required for full tests | User preference, simplifies test logic | Phase 3 |
+| Compression parameter implemented | gzip_level 0-9 with default 4L; NULL disables compression | Phase 2 |
+| delarr_mmap() implemented | Full mmap package backend for memory-mapped binary files | Phase 2 |
+| hdf5r is required for full tests | Tests FAIL (not skip) when unavailable; DELARR_SKIP_HDF5 escape hatch | Phase 2 |
 
 ---
 *Roadmap created: 2026-01-22*
