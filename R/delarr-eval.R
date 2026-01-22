@@ -186,6 +186,19 @@ infer_chunk_size <- function(seed, requested_cols, chunk_size) {
 #'
 #' @return A realised matrix/vector, or `NULL` invisibly when writing to
 #'   `into`.
+#'
+#' @examples
+#' # Basic materialization
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr(mat)
+#' collect(darr)
+#'
+#' # Collect after lazy operations
+#' result <- darr |>
+#'   d_map(~ .x^2) |>
+#'   collect()
+#' result
+#'
 #' @export
 collect <- function(x, into = NULL, chunk_size = NULL) {
   seed <- x$seed

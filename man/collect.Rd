@@ -24,3 +24,16 @@ and optional reductions on the fly. By default the result is returned as a
 base matrix or vector; alternatively, supply a writer via \code{into} to stream
 the output elsewhere (e.g., \code{hdf5_writer()}).
 }
+\examples{
+# Basic materialization
+mat <- matrix(1:12, nrow = 3, ncol = 4)
+darr <- delarr(mat)
+collect(darr)
+
+# Collect after lazy operations
+result <- darr |>
+  d_map(~ .x^2) |>
+  collect()
+result
+
+}

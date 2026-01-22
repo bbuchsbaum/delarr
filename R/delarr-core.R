@@ -8,6 +8,20 @@
 #' @param ... Future extensions; currently ignored.
 #'
 #' @return A `delarr` object representing the delayed matrix.
+#'
+#' @examples
+#' # Create a delayed matrix from a regular matrix
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr(mat)
+#' darr
+#'
+#' # Operations are queued lazily
+#' result <- darr * 2
+#' result
+#'
+#' # Materialize with collect()
+#' collect(result)
+#'
 #' @export
 delarr <- function(x, ...) {
   if (inherits(x, "delarr")) {
