@@ -91,3 +91,25 @@ safe_scale_matrix <- function(x, dim, center, scale, na.rm = FALSE) {
   }
   x
 }
+
+safe_min <- function(x, dim, na.rm = FALSE) {
+  if (requireNamespace("matrixStats", quietly = TRUE)) {
+    if (identical(dim, "rows")) {
+      return(matrixStats::rowMins(x, na.rm = na.rm))
+    }
+    return(matrixStats::colMins(x, na.rm = na.rm))
+  }
+  margin <- if (identical(dim, "rows")) 1L else 2L
+  suppressWarnings(apply(x, margin, min, na.rm = na.rm))
+}
+
+safe_max <- function(x, dim, na.rm = FALSE) {
+  if (requireNamespace("matrixStats", quietly = TRUE)) {
+    if (identical(dim, "rows")) {
+      return(matrixStats::rowMaxs(x, na.rm = na.rm))
+    }
+    return(matrixStats::colMaxs(x, na.rm = na.rm))
+  }
+  margin <- if (identical(dim, "rows")) 1L else 2L
+  suppressWarnings(apply(x, margin, max, na.rm = na.rm))
+}

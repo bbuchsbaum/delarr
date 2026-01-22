@@ -354,7 +354,7 @@ collect <- function(x, into = NULL, chunk_size = NULL) {
           counts <- counts + rowSums(!is.na(block))
         }
       } else if (identical(type, "min")) {
-        partial <- suppressWarnings(apply(block, 1L, min, na.rm = na_rm))
+        partial <- safe_min(block, "rows", na.rm = na_rm)
         if (is.null(acc)) {
           acc <- partial
         } else {
@@ -364,7 +364,7 @@ collect <- function(x, into = NULL, chunk_size = NULL) {
           counts <- counts + rowSums(!is.na(block))
         }
       } else if (identical(type, "max")) {
-        partial <- suppressWarnings(apply(block, 1L, max, na.rm = na_rm))
+        partial <- safe_max(block, "rows", na.rm = na_rm)
         if (is.null(acc)) {
           acc <- partial
         } else {
@@ -417,7 +417,7 @@ collect <- function(x, into = NULL, chunk_size = NULL) {
         counts[pos] <- counts[pos] + colSums(!is.na(block))
       }
     } else if (identical(type, "min")) {
-      partial <- suppressWarnings(apply(block, 2L, min, na.rm = na_rm))
+      partial <- safe_min(block, "cols", na.rm = na_rm)
       missing <- is.na(acc[pos])
       if (any(missing)) {
         acc[pos][missing] <- partial[missing]
@@ -429,7 +429,7 @@ collect <- function(x, into = NULL, chunk_size = NULL) {
         counts[pos] <- counts[pos] + colSums(!is.na(block))
       }
     } else if (identical(type, "max")) {
-      partial <- suppressWarnings(apply(block, 2L, max, na.rm = na_rm))
+      partial <- safe_max(block, "cols", na.rm = na_rm)
       missing <- is.na(acc[pos])
       if (any(missing)) {
         acc[pos][missing] <- partial[missing]
