@@ -14,15 +14,15 @@
 ## Current Position
 
 **Phase:** 1 of 4 (Baseline & Documentation)
-**Plan:** 01-01 of 12
+**Plan:** 01-03 of 5
 **Status:** In progress
-**Last activity:** 2026-01-22 - Completed 01-01-PLAN.md
+**Last activity:** 2026-01-22 - Completed 01-03-PLAN.md
 
 **Progress:**
 ```
-[█░░░░░░░░░░░░░░░░░░░] 3% (1/30 requirements)
+[███░░░░░░░░░░░░░░░░░] 10% (3/30 requirements)
 
-Phase 1: Baseline & Documentation    [█░░░░░░░░░] 1/12
+Phase 1: Baseline & Documentation    [██░░░░░░░░] 2/5
 Phase 2: Code Quality                [░░░░░░░░░░] 0/10
 Phase 3: Platform Readiness          [░░░░░░░░░░] 0/7
 Phase 4: Submission                  [░░░░░░░░░░] 0/5
@@ -30,8 +30,8 @@ Phase 4: Submission                  [░░░░░░░░░░] 0/5
 
 ## Performance Metrics
 
-**Velocity:** 1.6 min/task (1 plan, 3 tasks, 1m 34s total)
-**Quality:** Clean execution (0 deviations, 0 issues, 3 atomic commits)
+**Velocity:** 1.2 min/task (2 plans, 6 tasks, 7m 34s total)
+**Quality:** Clean execution (0 deviations, 0 issues, 6 atomic commits)
 
 **Blockers:** None
 
@@ -45,6 +45,9 @@ Phase 4: Submission                  [░░░░░░░░░░] 0/5
 | hdf5r required for full test suite | User preference, simplifies test logic | 2026-01-22 |
 | Use DCF stub format for MIT LICENSE | CRAN requires only YEAR/COPYRIGHT HOLDER fields, not full text | 2026-01-22 (01-01) |
 | Exclude .planning via .Rbuildignore | Prevents hidden files NOTE in R CMD check | 2026-01-22 (01-01) |
+| Use small matrices (2x3, 3x4) to ensure examples execute in <5 seconds | CRAN rejects slow-running examples | 2026-01-22 (01-03) |
+| Demonstrate pipeline pattern with \|> operator and collect() materialization | Shows lazy evaluation model clearly | 2026-01-22 (01-03) |
+| Compare generic functions with base R equivalents | Makes matrixStats compatibility clear | 2026-01-22 (01-03) |
 
 ### Known Issues
 
@@ -83,16 +86,17 @@ From research/SUMMARY.md:
 
 ## Session Continuity
 
-**Last session:** 2026-01-22 13:22:07 UTC
-**Stopped at:** Completed 01-01-PLAN.md
+**Last session:** 2026-01-22 13:27:57 UTC
+**Stopped at:** Completed 01-03-PLAN.md
 **Resume file:** None
 
-**Next Action:** Continue with remaining Phase 1 plans (01-02 through 01-12)
+**Next Action:** Continue with remaining Phase 1 plans (01-04, 01-05)
 
 **Context for Next Session:**
 - Clean R CMD check baseline established (LICENSE DCF format, .planning excluded)
-- Ready for documentation enhancements and example additions
-- All Phase 1 plans require clean baseline to avoid accumulating NOTEs
+- 7 transformation/helper functions now have runnable @examples (<5 seconds)
+- Examples follow pipeline pattern: matrix → delarr() → verb → collect()
+- Remaining documentation work: constructor examples, HDF5 examples with tempdir()
 
 **Open Questions:** None
 
