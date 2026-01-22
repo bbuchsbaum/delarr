@@ -165,6 +165,23 @@ delarr_hdf5 <- function(path, dataset) {
 #'
 #' @return No return value; the function always errors.
 #' @export
+#' @examples
+#' # delarr_mmap() is not yet implemented
+#' \dontrun{
+#' delarr_mmap()  # Throws an error
+#' }
+#'
+#' # Use delarr_backend() with a custom pull function instead
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr_backend(
+#'   nrow = 3, ncol = 4,
+#'   pull = function(rows = NULL, cols = NULL) {
+#'     rows <- rows %||% seq_len(3)
+#'     cols <- cols %||% seq_len(4)
+#'     mat[rows, cols, drop = FALSE]
+#'   }
+#' )
+#' collect(darr)
 delarr_mmap <- function(...) {
   stop("delarr_mmap() is not implemented yet. Use delarr_backend() with a custom pull function.", call. = FALSE)
 }

@@ -29,3 +29,30 @@ Creates or extends an HDF5 dataset so that \code{collect(x, into = writer)} can
 stream column blocks directly to disk without materialising the full matrix
 in memory.
 }
+\examples{
+if (requireNamespace("hdf5r", quietly = TRUE)) {
+  # Create source data in a temp HDF5 file
+  tf_in <- tempfile(fileext = ".h5")
+  data <- matrix(1:20, nrow = 4, ncol = 5)
+  f <- hdf5r::H5File$new(tf_in, mode = "w")
+  f$create_dataset("X", robj = data)
+  f$close_all()
+
+  # Load, transform, and stream to output file
+  darr <- delarr_hdf5(tf_in, "X")
+  transformed <- darr |> d_center(dim = "cols")
+
+  tf_out <- tempfile(fileext = ".h5")
+  writer <- hdf5_writer(tf_out, "result", ncol = ncol(transformed))
+  collect(transformed, into = writer)
+
+  # Verify output
+  g <- hdf5r::H5File$new(tf_out, mode = "r")
+  result <- g[["result"]]$read()
+  g$close_all()
+  result
+
+  # Clean up
+  unlink(c(tf_in, tf_out))
+}
+}
