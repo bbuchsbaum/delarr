@@ -194,6 +194,35 @@ rand_arr |>
 All verbs return a new `delarr`, so you can chain them freely. The operations
 fuse together and execute in a single streaming pass.
 
+## How delarr stays efficient
+
+`delarr` uses several strategies to minimise memory usage and maximise
+throughput:
+**Operation fusion.** When you chain multiple transformations, `delarr` doesn't
+create intermediate matrices. A pipeline like
+`d_center() |> d_map(~ .x * 2) |> d_scale()` records three operations but
+executes them in a single pass. Each element is centred, scaled, and
+transformed together before moving to the next chunk.
+
+**Chunked streaming.** Data flows through the pipeline in column chunks (you
+control the size via `chunk_size` in `collect()`). Only one chunk lives in
+memory at a time, so a 10 GB matrix can be processed with just a few hundred
+megabytes of RAM.
+
+**Lazy file access.** On-disk backends like `delarr_hdf5()` and `delarr_mmap()`
+open files only during `collect()` and read only the columns needed for the
+current chunk. The file handle is closed immediately after, avoiding resource
+leaks.
+
+**Minimal dispatch overhead.** `delarr` uses simple S3 classes and closures
+rather than S4 machinery. The core execution loop is a tight `for` over column
+chunks with direct function calls—no method lookup per element.
+
+**Streaming reductions.** Operations like `d_reduce(mean, dim = "cols")` compute
+running accumulators as chunks flow through, never materialising the full
+matrix. The final result requires only O(ncol) or O(nrow) memory, not
+O(nrow × ncol).
+
 ## When to use delarr
 `delarr` is a good fit when:
 
