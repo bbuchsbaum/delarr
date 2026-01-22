@@ -98,9 +98,6 @@ delarr_mem <- function(x) {
 #'   unlink(tf)
 #' }
 delarr_hdf5 <- function(path, dataset) {
-  if (!requireNamespace("hdf5r", quietly = TRUE)) {
-    stop("Package 'hdf5r' is required for delarr_hdf5", call. = FALSE)
-  }
   file <- hdf5r::H5File$new(path, mode = "r")
   on.exit(file$close_all())
   dset <- file[[dataset]]
@@ -187,12 +184,6 @@ delarr_hdf5 <- function(path, dataset) {
 #'   unlink(tf)
 #' }
 delarr_mmap <- function(path, nrow, ncol, mode = NULL) {
-  if (!requireNamespace("mmap", quietly = TRUE)) {
-    stop("Package 'mmap' is required for delarr_mmap(). ",
-         "Install it or use delarr_backend() with a custom pull function.",
-         call. = FALSE)
-  }
-
   # Validate inputs
   if (!file.exists(path)) {
     stop("File not found: ", path, call. = FALSE)

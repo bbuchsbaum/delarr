@@ -44,9 +44,6 @@
 #'   unlink(c(tf_in, tf_out))
 #' }
 hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression = 4L) {
-  if (!requireNamespace("hdf5r", quietly = TRUE)) {
-    stop("Package 'hdf5r' is required for hdf5_writer()", call. = FALSE)
-  }
   if (length(chunk) != 2L) {
     stop("chunk must be a length-2 integer vector", call. = FALSE)
   }
