@@ -6,3 +6,4 @@
 ^delarr_cheatsheet_v3\.md$
 ^\.gitignore$
 ^vignettes/.*\.html$
+^\.planning$
