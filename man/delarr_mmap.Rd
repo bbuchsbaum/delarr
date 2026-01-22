@@ -23,21 +23,19 @@ Uses the mmap package to lazily read slices from a binary file on demand.
 The file must contain raw numeric data in column-major order (R's default).
 }
 \examples{
-if (requireNamespace("mmap", quietly = TRUE)) {
-  # Create a binary file with matrix data
-  mat <- matrix(1:20, nrow = 4, ncol = 5)
-  tf <- tempfile()
-  writeBin(as.double(mat), tf)
+# Create a binary file with matrix data
+mat <- matrix(1:20, nrow = 4, ncol = 5)
+tf <- tempfile()
+writeBin(as.double(mat), tf)
 
-  # Load as delayed array
-  darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
-  darr
+# Load as delayed array
+darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
+darr
 
-  # Apply operations and collect
-  result <- darr |> d_map(~ .x * 2) |> collect()
-  result
+# Apply operations and collect
+result <- darr |> d_map(~ .x * 2) |> collect()
+result
 
-  # Clean up
-  unlink(tf)
-}
+# Clean up
+unlink(tf)
 }

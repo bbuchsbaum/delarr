@@ -76,27 +76,25 @@ delarr_mem <- function(x) {
 #' @return A `delarr` that streams data from the HDF5 dataset.
 #' @export
 #' @examples
-#' if (requireNamespace("hdf5r", quietly = TRUE)) {
-#'   # Create a temporary HDF5 file
-#'   tf <- tempfile(fileext = ".h5")
-#'   data <- matrix(1:20, nrow = 4, ncol = 5)
+#' # Create a temporary HDF5 file
+#' tf <- tempfile(fileext = ".h5")
+#' data <- matrix(1:20, nrow = 4, ncol = 5)
 #'
-#'   # Write test data
-#'   f <- hdf5r::H5File$new(tf, mode = "w")
-#'   f$create_dataset("X", robj = data)
-#'   f$close_all()
+#' # Write test data
+#' f <- hdf5r::H5File$new(tf, mode = "w")
+#' f$create_dataset("X", robj = data)
+#' f$close_all()
 #'
-#'   # Load as delayed array
-#'   darr <- delarr_hdf5(tf, "X")
-#'   darr
+#' # Load as delayed array
+#' darr <- delarr_hdf5(tf, "X")
+#' darr
 #'
-#'   # Apply operations and collect
-#'   result <- darr |> d_map(~ .x * 2) |> collect()
-#'   result
+#' # Apply operations and collect
+#' result <- darr |> d_map(~ .x * 2) |> collect()
+#' result
 #'
-#'   # Clean up
-#'   unlink(tf)
-#' }
+#' # Clean up
+#' unlink(tf)
 delarr_hdf5 <- function(path, dataset) {
   file <- hdf5r::H5File$new(path, mode = "r")
   on.exit(file$close_all())
@@ -166,23 +164,21 @@ delarr_hdf5 <- function(path, dataset) {
 #' @return A `delarr` that streams data from the memory-mapped file.
 #' @export
 #' @examples
-#' if (requireNamespace("mmap", quietly = TRUE)) {
-#'   # Create a binary file with matrix data
-#'   mat <- matrix(1:20, nrow = 4, ncol = 5)
-#'   tf <- tempfile()
-#'   writeBin(as.double(mat), tf)
+#' # Create a binary file with matrix data
+#' mat <- matrix(1:20, nrow = 4, ncol = 5)
+#' tf <- tempfile()
+#' writeBin(as.double(mat), tf)
 #'
-#'   # Load as delayed array
-#'   darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
-#'   darr
+#' # Load as delayed array
+#' darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
+#' darr
 #'
-#'   # Apply operations and collect
-#'   result <- darr |> d_map(~ .x * 2) |> collect()
-#'   result
+#' # Apply operations and collect
+#' result <- darr |> d_map(~ .x * 2) |> collect()
+#' result
 #'
-#'   # Clean up
-#'   unlink(tf)
-#' }
+#' # Clean up
+#' unlink(tf)
 delarr_mmap <- function(path, nrow, ncol, mode = NULL) {
   # Validate inputs
   if (!file.exists(path)) {
