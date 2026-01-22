@@ -55,7 +55,14 @@ Plans:
 
 **Dependencies:** Phase 1 (clean baseline required before adding tests)
 
-**Plans:** (created by /gsd:plan-phase)
+**Plans:** 5 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Fix all-NA reduction bug, add reduction edge case tests
+- [ ] 02-02-PLAN.md — Clean up hdf5_writer() (remove duplicate validation, implement compression)
+- [ ] 02-03-PLAN.md — Resolve delarr_mmap() stub (implement or remove)
+- [ ] 02-04-PLAN.md — Add edge case tests (negative indices, chunk boundaries, broadcasting)
+- [ ] 02-05-PLAN.md — Final validation (HDF5 test policy, full test suite, R CMD check)
 
 **Requirements:**
 - CODE-01: Fix all-NA reduction bug (mean of all-NA should return NA, not NaN)
@@ -132,8 +139,8 @@ Plans:
 
 | Phase | Status | Progress | Requirements |
 |-------|--------|----------|--------------|
-| 1 - Baseline & Documentation | ✓ Complete | 100% | 12 requirements |
-| 2 - Code Quality | Pending | 0% | 10 requirements |
+| 1 - Baseline & Documentation | Complete | 100% | 12 requirements |
+| 2 - Code Quality | Planned | 0% | 10 requirements |
 | 3 - Platform Readiness | Pending | 0% | 7 requirements |
 | 4 - Submission | Pending | 0% | 5 requirements |
 
