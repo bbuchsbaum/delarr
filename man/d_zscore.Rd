@@ -19,3 +19,14 @@ A \code{delarr} with the z-score applied lazily.
 \description{
 Equivalent to centering and scaling with unit variance.
 }
+\examples{
+mat <- matrix(c(1, 2, 3, 10, 20, 30), nrow = 2, ncol = 3)
+darr <- delarr(mat)
+
+# Z-score normalize rows
+zscored <- darr |> d_zscore(dim = "rows") |> collect()
+zscored
+
+# Row means should be ~0, row SDs should be ~1
+rowMeans(zscored)
+}

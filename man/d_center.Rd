@@ -19,3 +19,16 @@ A \code{delarr} with a deferred centering operation.
 \description{
 Center a delayed matrix along rows or columns
 }
+\examples{
+mat <- matrix(c(1, 2, 3, 10, 20, 30), nrow = 2, ncol = 3)
+darr <- delarr(mat)
+
+# Center rows (subtract row means)
+centered_rows <- darr |> d_center(dim = "rows") |> collect()
+centered_rows
+rowMeans(centered_rows)  # Should be ~0
+
+# Center columns (subtract column means)
+centered_cols <- darr |> d_center(dim = "cols") |> collect()
+colMeans(centered_cols)  # Should be ~0
+}

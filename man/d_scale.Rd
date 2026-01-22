@@ -23,3 +23,15 @@ A \code{delarr} with a deferred scaling operation.
 \description{
 Scale a delayed matrix along rows or columns
 }
+\examples{
+mat <- matrix(c(1, 2, 3, 10, 20, 30), nrow = 2, ncol = 3)
+darr <- delarr(mat)
+
+# Scale rows (center and divide by SD)
+scaled <- darr |> d_scale(dim = "rows") |> collect()
+scaled
+
+# Scale without centering
+scaled_only <- darr |> d_scale(dim = "rows", center = FALSE) |> collect()
+scaled_only
+}
