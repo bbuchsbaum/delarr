@@ -8,4 +8,8 @@
 ^vignettes/.*\.html$
 ^\.planning$
 ^doc$
+^docs$
 ^Meta$
+^\.omc$
+^\.rcmdcheck_result\.rds$
+^\.covr_result\.rds$

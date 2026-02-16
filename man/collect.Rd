@@ -4,15 +4,33 @@
 \alias{collect}
 \title{Materialise a delayed matrix}
 \usage{
-collect(x, into = NULL, chunk_size = NULL)
+collect(
+  x,
+  into = NULL,
+  chunk_size = NULL,
+  chunk_margin = c("cols", "rows"),
+  target_bytes = NULL,
+  parallel = FALSE,
+  workers = NULL,
+  optimize = TRUE
+)
 }
 \arguments{
 \item{x}{A \code{delarr} object.}
 
 \item{into}{Optional writer or callback used to receive streamed chunks.}
 
-\item{chunk_size}{Optional column chunk size; defaults to seed hints or
-16384.}
+\item{chunk_size}{Optional chunk size along \code{chunk_margin}.}
+
+\item{chunk_margin}{Chunking axis for non-reduction collection.}
+
+\item{target_bytes}{Optional memory budget (bytes) used to adapt chunk size.}
+
+\item{parallel}{Logical; attempt parallel chunk execution when safe.}
+
+\item{workers}{Number of worker processes when \code{parallel = TRUE}.}
+
+\item{optimize}{Logical; run lightweight DAG optimizations before evaluation.}
 }
 \value{
 A realised matrix/vector, or \code{NULL} invisibly when writing to

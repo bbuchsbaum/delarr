@@ -4,7 +4,14 @@
 \alias{block_apply}
 \title{Apply a function to streamed matrix blocks}
 \usage{
-block_apply(x, margin = c("cols", "rows"), size = 16384L, fn)
+block_apply(
+  x,
+  margin = c("cols", "rows"),
+  size = 16384L,
+  fn,
+  parallel = FALSE,
+  workers = NULL
+)
 }
 \arguments{
 \item{x}{A \code{delarr} object.}
@@ -14,6 +21,10 @@ block_apply(x, margin = c("cols", "rows"), size = 16384L, fn)
 \item{size}{Approximate chunk size.}
 
 \item{fn}{Function applied to each materialised chunk.}
+
+\item{parallel}{Logical; process chunks in parallel when possible.}
+
+\item{workers}{Number of worker processes for parallel execution.}
 }
 \value{
 A list of results returned by \code{fn}.
