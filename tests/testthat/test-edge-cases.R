@@ -84,6 +84,12 @@ test_that("negative indices combined with lazy operations", {
   expect_equal(result, mat[-1, ] * 2)
 })
 
+test_that("logical indices containing NA fail clearly", {
+  mat <- matrix(1:20, 4, 5)
+  x <- delarr(mat)
+  expect_error(collect(x[c(TRUE, NA, FALSE, FALSE), ]), "Logical index contains NA")
+})
+
 # --- Chunk Size Boundary Tests (TEST-05) ---
 
 test_that("chunk_size=1 produces correct results", {

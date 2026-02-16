@@ -39,7 +39,8 @@ list(
 
 requires_full_eval <- function(ops) {
   any(vapply(ops, function(op) {
-    op$op %in% c("center", "scale", "zscore") && identical(op$dim, "rows")
+    op$op %in% c("center", "scale", "zscore", "detrend") &&
+      identical(op$dim, "rows")
   }, logical(1)))
 }
 
@@ -179,19 +180,33 @@ classify_reduce <- function(reduce_op) {
   list(type = type, dim = dim, op = reduce_op, na.rm = reduce_op$na_rm %||% FALSE)
 }
 
-infer_chunk_size <- function(seed, requested_cols, chunk_size) {
+infer_chunk_size <- function(seed, requested_rows, requested_cols, chunk_size,
+                             margin = c("cols", "rows"), target_bytes = NULL) {
+  margin <- match.arg(margin)
+  requested <- if (identical(margin, "cols")) requested_cols else requested_rows
   if (!is.null(chunk_size) && chunk_size > 0L) {
-    return(as.integer(chunk_size))
+    return(as.integer(min(chunk_size, requested)))
   }
-  hint <- seed$chunk_hint
-  if (is.list(hint) && !is.null(hint$cols)) {
-    size <- as.integer(hint$cols)
-    if (!is.na(size) && size > 0L) {
-      return(min(size, requested_cols))
+  if (!is.null(target_bytes) && is.finite(target_bytes) && target_bytes > 0) {
+    bytes_per_value <- 8L
+    fixed_extent <- if (identical(margin, "cols")) requested_rows else requested_cols
+    denom <- max(1L, as.integer(fixed_extent)) * bytes_per_value
+    adaptive <- floor(as.numeric(target_bytes) / denom)
+    if (is.finite(adaptive) && adaptive >= 1L) {
+      return(as.integer(min(requested, adaptive)))
     }
   }
-  default <- 16384L
-  as.integer(min(default, requested_cols))
+  hint <- seed$chunk_hint
+  hint_key <- if (identical(margin, "cols")) "cols" else "rows"
+  hint_size <- if (is.list(hint)) hint[[hint_key]] else NULL
+  if (!is.null(hint_size)) {
+    size <- as.integer(hint_size)
+    if (!is.na(size) && size > 0L) {
+      return(min(size, requested))
+    }
+  }
+  default <- if (identical(margin, "cols")) 16384L else 4096L
+  as.integer(min(default, requested))
 }
 
 #' Materialise a delayed matrix
@@ -203,8 +218,12 @@ infer_chunk_size <- function(seed, requested_cols, chunk_size) {
 #'
 #' @param x A `delarr` object.
 #' @param into Optional writer or callback used to receive streamed chunks.
-#' @param chunk_size Optional column chunk size; defaults to seed hints or
-#'   16384.
+#' @param chunk_size Optional chunk size along `chunk_margin`.
+#' @param chunk_margin Chunking axis for non-reduction collection.
+#' @param target_bytes Optional memory budget (bytes) used to adapt chunk size.
+#' @param parallel Logical; attempt parallel chunk execution when safe.
+#' @param workers Number of worker processes when `parallel = TRUE`.
+#' @param optimize Logical; run lightweight DAG optimizations before evaluation.
 #'
 #' @return A realised matrix/vector, or `NULL` invisibly when writing to
 #'   `into`.
@@ -222,18 +241,43 @@ infer_chunk_size <- function(seed, requested_cols, chunk_size) {
 #' result
 #'
 #' @export
-collect <- function(x, into = NULL, chunk_size = NULL) {
-  seed <- x$seed
-  if (is.function(seed$begin)) seed$begin()
-  on.exit({
-    if (is.function(seed$end)) seed$end()
-  }, add = TRUE)
+collect <- function(x, into = NULL, chunk_size = NULL,
+                    chunk_margin = c("cols", "rows"),
+                    target_bytes = NULL,
+                    parallel = FALSE,
+                    workers = NULL,
+                    optimize = TRUE) {
+  stopifnot(inherits(x, "delarr"))
+  chunk_margin <- match.arg(chunk_margin)
+  if (isTRUE(optimize)) {
+    x <- optimize_delarr(x)
+  }
 
+  seed <- x$seed
   plan <- compile_plan(x)
   rows <- plan$rows %||% seq_len(seed$nrow)
   cols <- plan$cols %||% seq_len(seed$ncol)
   n_rows <- length(rows)
   n_cols <- length(cols)
+
+  allow_parallel <- isTRUE(parallel) &&
+    is.null(into) &&
+    is.null(plan$reduce) &&
+    identical(chunk_margin, "cols") &&
+    !plan$pair_rhs &&
+    !is.function(seed$begin) &&
+    !is.function(seed$end) &&
+    identical(.Platform$OS.type, "unix")
+
+  if (!allow_parallel) {
+    if (isTRUE(parallel) && identical(.Platform$OS.type, "windows")) {
+      warning("parallel collect() is only enabled on Unix-like platforms; falling back to sequential")
+    }
+    if (is.function(seed$begin)) seed$begin()
+    on.exit({
+      if (is.function(seed$end)) seed$end()
+    }, add = TRUE)
+  }
 
   if (requires_full_eval(plan$ops)) {
     mat <- pull_seed(seed, rows = rows, cols = cols)
@@ -256,42 +300,72 @@ collect <- function(x, into = NULL, chunk_size = NULL) {
     return(handle_collect_output(res, into))
   }
 
-  rhs_ctx <- NULL
+  rhs_contexts <- vector("list", length(plan$ops))
+  rhs_precomputed <- vector("list", length(plan$ops))
   if (plan$pair_rhs) {
-    rhs_idx <- plan$rhs_indices[1]
-    rhs_obj <- plan$ops[[rhs_idx]]$rhs
-    rhs_plan <- compile_plan(rhs_obj)
-    rhs_seed <- rhs_obj$seed
-    rhs_rows <- rhs_plan$rows %||% seq_len(rhs_seed$nrow)
-    rhs_cols <- rhs_plan$cols %||% seq_len(rhs_seed$ncol)
-    if (length(rhs_rows) == n_rows && length(rhs_cols) == n_cols) {
-      if (is.function(rhs_seed$begin)) rhs_seed$begin()
-      on.exit({
-        if (is.function(rhs_seed$end)) rhs_seed$end()
-      }, add = TRUE)
-      matched <- plan$rhs_indices[vapply(plan$ops[plan$rhs_indices], function(op) {
-        inherits(op$rhs, "delarr") && identical(op$rhs, rhs_obj)
-      }, logical(1))]
-      rhs_ctx <- list(
-        seed = rhs_seed,
-        plan = rhs_plan,
-        rows = rhs_rows,
-        cols = rhs_cols,
-        indices = matched
-      )
+    for (idx in plan$rhs_indices) {
+      rhs_obj <- plan$ops[[idx]]$rhs
+      if (!inherits(rhs_obj, "delarr")) {
+        next
+      }
+      rhs_plan <- compile_plan(rhs_obj)
+      rhs_seed <- rhs_obj$seed
+      rhs_rows <- rhs_plan$rows %||% seq_len(rhs_seed$nrow)
+      rhs_cols <- rhs_plan$cols %||% seq_len(rhs_seed$ncol)
+      chunk_compatible <- is.null(rhs_plan$reduce) &&
+        !requires_full_eval(rhs_plan$ops) &&
+        length(rhs_rows) == n_rows &&
+        length(rhs_cols) == n_cols
+      if (chunk_compatible) {
+        rhs_contexts[[idx]] <- list(
+          seed = rhs_seed,
+          plan = rhs_plan,
+          rows = rhs_rows,
+          cols = rhs_cols
+        )
+        if (is.function(rhs_seed$begin)) rhs_seed$begin()
+        on.exit({
+          if (is.function(rhs_seed$end)) rhs_seed$end()
+        }, add = TRUE)
+      } else {
+        rhs_precomputed[[idx]] <- collect(rhs_obj)
+      }
     }
   }
 
-  rhs_chunks_for <- function(pos) {
-    if (is.null(rhs_ctx)) {
-      return(NULL)
-    }
-    rhs_cols <- rhs_ctx$cols[pos]
-    rhs_block <- pull_seed(rhs_ctx$seed, rows = rhs_ctx$rows, cols = rhs_cols)
-    rhs_block <- apply_ops(rhs_block, rhs_ctx$plan$ops)
+  rhs_chunks_for <- function(pos, margin = c("cols", "rows")) {
+    margin <- match.arg(margin)
     chunks <- vector("list", length(plan$ops))
-    for (idx in rhs_ctx$indices) {
-      chunks[[idx]] <- rhs_block
+    for (idx in plan$rhs_indices) {
+      ctx <- rhs_contexts[[idx]]
+      if (!is.null(ctx)) {
+        rhs_block <- if (identical(margin, "cols")) {
+          rhs_cols <- ctx$cols[pos]
+          pull_seed(ctx$seed, rows = ctx$rows, cols = rhs_cols)
+        } else {
+          rhs_rows <- ctx$rows[pos]
+          pull_seed(ctx$seed, rows = rhs_rows, cols = ctx$cols)
+        }
+        rhs_block <- apply_ops(rhs_block, ctx$plan$ops)
+        chunks[[idx]] <- rhs_block
+        next
+      }
+      rhs_val <- rhs_precomputed[[idx]]
+      if (is.null(rhs_val)) {
+        next
+      }
+      if (is.matrix(rhs_val) && all(dim(rhs_val) == c(n_rows, n_cols))) {
+        chunks[[idx]] <- if (identical(margin, "cols")) {
+          rhs_val[, pos, drop = FALSE]
+        } else {
+          rhs_val[pos, , drop = FALSE]
+        }
+      } else {
+        chunks[[idx]] <- rhs_val
+      }
+    }
+    if (!any(vapply(chunks, Negate(is.null), logical(1)))) {
+      return(NULL)
     }
     chunks
   }
@@ -305,23 +379,76 @@ collect <- function(x, into = NULL, chunk_size = NULL) {
     return(handle_collect_output(res, into))
   }
 
-  chunk_size <- infer_chunk_size(seed, n_cols, chunk_size)
-  chunks <- seq_chunk(n_cols, chunk_size)
+  collect_margin <- if (is.null(reduce_info)) chunk_margin else "cols"
+  chunk_size <- infer_chunk_size(
+    seed = seed,
+    requested_rows = n_rows,
+    requested_cols = n_cols,
+    chunk_size = chunk_size,
+    margin = collect_margin,
+    target_bytes = target_bytes
+  )
+  chunk_extent <- if (identical(collect_margin, "cols")) n_cols else n_rows
+  chunks <- seq_chunk(chunk_extent, chunk_size)
 
   if (is.null(reduce_info)) {
+    if (!is.null(into) && identical(collect_margin, "rows")) {
+      warning("chunk_margin='rows' is not supported with into= writers; using column chunks instead")
+      collect_margin <- "cols"
+      chunk_size <- infer_chunk_size(
+        seed = seed,
+        requested_rows = n_rows,
+        requested_cols = n_cols,
+        chunk_size = chunk_size,
+        margin = collect_margin,
+        target_bytes = target_bytes
+      )
+      chunks <- seq_chunk(n_cols, chunk_size)
+    }
+
+    eval_chunk <- function(pos) {
+      if (identical(collect_margin, "cols")) {
+        pull_cols <- cols[pos]
+        block <- pull_seed(seed, rows = rows, cols = pull_cols)
+        rhs_chunks <- rhs_chunks_for(pos, margin = "cols")
+        block <- apply_ops(block, plan$ops, rhs_chunks)
+        list(block = block, rows = rows, cols = pull_cols, positions = pos)
+      } else {
+        pull_rows <- rows[pos]
+        block <- pull_seed(seed, rows = pull_rows, cols = cols)
+        rhs_chunks <- rhs_chunks_for(pos, margin = "rows")
+        block <- apply_ops(block, plan$ops, rhs_chunks)
+        list(block = block, rows = pull_rows, cols = cols, positions = pos)
+      }
+    }
+
+    if (allow_parallel) {
+      avail <- suppressWarnings(parallel::detectCores(logical = FALSE))
+      default_cores <- if (is.na(avail)) 1L else max(1L, avail - 1L)
+      cores <- as.integer(workers %||% default_cores)
+      pieces <- parallel::mclapply(chunks, eval_chunk, mc.cores = max(1L, cores))
+      result <- matrix(vector(mode = typeof(pieces[[1]]$block), length = n_rows * n_cols), nrow = n_rows, ncol = n_cols)
+      for (piece in pieces) {
+        result[, piece$positions] <- piece$block
+      }
+      return(result)
+    }
+
     result <- NULL
     for (pos in chunks) {
-      pull_cols <- cols[pos]
-      block <- pull_seed(seed, rows = rows, cols = pull_cols)
-      rhs_chunks <- rhs_chunks_for(pos)
-      block <- apply_ops(block, plan$ops, rhs_chunks)
+      piece <- eval_chunk(pos)
+      block <- piece$block
       if (is.null(into)) {
         if (is.null(result)) {
           result <- matrix(vector(mode = typeof(block), length = n_rows * n_cols), nrow = n_rows, ncol = n_cols)
         }
-        result[, pos] <- block
+        if (identical(collect_margin, "cols")) {
+          result[, piece$positions] <- block
+        } else {
+          result[piece$positions, ] <- block
+        }
       } else {
-        assign_chunk(into, block, rows = rows, cols = pull_cols, positions = pos)
+        assign_chunk(into, block, rows = piece$rows, cols = piece$cols, positions = piece$positions)
       }
     }
     if (is.null(into)) {
@@ -504,6 +631,8 @@ finalize_target <- function(target) {
 #' @param margin Dimension along which to chunk (`"cols"` or `"rows"`).
 #' @param size Approximate chunk size.
 #' @param fn Function applied to each materialised chunk.
+#' @param parallel Logical; process chunks in parallel when possible.
+#' @param workers Number of worker processes for parallel execution.
 #'
 #' @return A list of results returned by `fn`.
 #'
@@ -524,7 +653,8 @@ finalize_target <- function(target) {
 #' unlist(row_means)
 #'
 #' @export
-block_apply <- function(x, margin = c("cols", "rows"), size = 16384L, fn) {
+block_apply <- function(x, margin = c("cols", "rows"), size = 16384L, fn,
+                        parallel = FALSE, workers = NULL) {
   margin <- match.arg(margin)
   if (!is.function(fn)) {
     stop("fn must be a function", call. = FALSE)
@@ -532,8 +662,7 @@ block_apply <- function(x, margin = c("cols", "rows"), size = 16384L, fn) {
   dims <- dim(x)
   total <- if (margin == "cols") dims[2] else dims[1]
   chunks <- seq_chunk(total, size)
-  out <- vector("list", length(chunks))
-  for (i in seq_along(chunks)) {
+  eval_chunk <- function(i) {
     indices <- chunks[[i]]
     slice_arr <- if (margin == "cols") {
       x[, indices, drop = FALSE]
@@ -541,7 +670,20 @@ block_apply <- function(x, margin = c("cols", "rows"), size = 16384L, fn) {
       x[indices, , drop = FALSE]
     }
     block <- collect(slice_arr, chunk_size = size)
-    out[[i]] <- fn(block)
+    fn(block)
+  }
+
+  if (isTRUE(parallel) && identical(.Platform$OS.type, "unix")) {
+    avail <- suppressWarnings(parallel::detectCores(logical = FALSE))
+    default_cores <- if (is.na(avail)) 1L else max(1L, avail - 1L)
+    cores <- as.integer(workers %||% default_cores)
+    out <- parallel::mclapply(seq_along(chunks), eval_chunk, mc.cores = max(1L, cores))
+    return(out)
+  }
+
+  out <- vector("list", length(chunks))
+  for (i in seq_along(chunks)) {
+    out[[i]] <- eval_chunk(i)
   }
   out
 }

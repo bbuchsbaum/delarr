@@ -7,6 +7,9 @@ normalize_index <- function(idx, n) {
     return(seq_len(n))
   }
   if (is.logical(idx)) {
+    if (anyNA(idx)) {
+      stop("Logical index contains NA", call. = FALSE)
+    }
     if (length(idx) != n) {
       stop("Logical index length must match dimension", call. = FALSE)
     }

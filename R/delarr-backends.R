@@ -226,20 +226,20 @@ delarr_mmap <- function(path, nrow, ncol, mode = NULL) {
   pull <- function(rows = NULL, cols = NULL) {
     rows <- rows %||% seq_len(nrow)
     cols <- cols %||% seq_len(ncol)
+    rows <- as.integer(rows)
+    cols <- as.integer(cols)
+    idx <- rep.int(rows, times = length(cols)) +
+      rep((cols - 1L) * nrow, each = length(rows))
 
-    # mmap returns flat vector, need to extract as matrix
     if (!is.null(state$m)) {
-      vec <- state$m[]
+      vals <- state$m[idx]
     } else {
-      # One-off read without persistent mapping
       m <- mmap::mmap(path, mode = mode)
       on.exit(mmap::munmap(m))
-      vec <- m[]
+      vals <- m[idx]
     }
 
-    # Reshape to matrix (column-major)
-    full_mat <- matrix(vec[seq_len(nrow * ncol)], nrow = nrow, ncol = ncol)
-    full_mat[rows, cols, drop = FALSE]
+    matrix(vals, nrow = length(rows), ncol = length(cols))
   }
 
   delarr_backend(

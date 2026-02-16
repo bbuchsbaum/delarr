@@ -84,8 +84,8 @@ test_that("reduce returns vector", {
 test_that("reduce dims update lazily", {
   mat <- matrix(1:12, 3, 4)
   x <- delarr(mat)
-  expect_equal(dim(d_reduce(x, sum, dim = "rows")), c(1L, ncol(mat)))
-  expect_equal(dim(d_reduce(x, sum, dim = "cols")), c(nrow(mat), 1L))
+  expect_equal(dim(d_reduce(x, sum, dim = "rows")), c(nrow(mat), 1L))
+  expect_equal(dim(d_reduce(x, sum, dim = "cols")), c(1L, ncol(mat)))
 })
 
 test_that("reductions support na.rm", {
@@ -163,7 +163,7 @@ test_that("print summarises pipeline", {
   mat <- matrix(1:6, 3, 2)
   x <- delarr(mat) |> d_center("rows") |> d_reduce(mean, "rows")
   out <- paste(capture.output(print(x)), collapse = "\n")
-  expect_match(out, "<delarr> 1 x 2", fixed = TRUE)
+  expect_match(out, "<delarr> 3 x 1", fixed = TRUE)
   expect_match(out, "center(rows)", fixed = TRUE)
   expect_match(out, "reduce(rows)", fixed = TRUE)
 })
@@ -191,6 +191,53 @@ test_that("emap2 with delarr RHS is pair-chunked and correct", {
   expect_equal(tracker$pulls, ceiling(ncol(lhs) / chunk))
 })
 
+test_that("multiple delarr RHS operands stream correctly in chunks", {
+  set.seed(88)
+  lhs <- matrix(rnorm(48), 6, 8)
+  rhs1 <- matrix(rnorm(48), 6, 8)
+  rhs2 <- matrix(rnorm(48), 6, 8)
+  t1 <- new.env(parent = emptyenv())
+  t2 <- new.env(parent = emptyenv())
+  t1$pulls <- 0L
+  t2$pulls <- 0L
+
+  seed1 <- delarr_seed(
+    nrow = nrow(rhs1),
+    ncol = ncol(rhs1),
+    pull = function(rows = NULL, cols = NULL) {
+      t1$pulls <- t1$pulls + 1L
+      rows <- rows %||% seq_len(nrow(rhs1))
+      cols <- cols %||% seq_len(ncol(rhs1))
+      rhs1[rows, cols, drop = FALSE]
+    }
+  )
+  seed2 <- delarr_seed(
+    nrow = nrow(rhs2),
+    ncol = ncol(rhs2),
+    pull = function(rows = NULL, cols = NULL) {
+      t2$pulls <- t2$pulls + 1L
+      rows <- rows %||% seq_len(nrow(rhs2))
+      cols <- cols %||% seq_len(ncol(rhs2))
+      rhs2[rows, cols, drop = FALSE]
+    }
+  )
+
+  x <- delarr(lhs)
+  y <- delarr(seed1)
+  z <- delarr(seed2)
+  chunk <- 2L
+  expect_equal(collect(x + y + z, chunk_size = chunk), lhs + rhs1 + rhs2)
+  expect_equal(t1$pulls, ceiling(ncol(lhs) / chunk))
+  expect_equal(t2$pulls, ceiling(ncol(lhs) / chunk))
+})
+
+test_that("row detrend is invariant to chunk size", {
+  set.seed(12)
+  mat <- matrix(rnorm(40), 5, 8)
+  x <- delarr(mat) |> d_detrend(dim = "rows", degree = 1L)
+  expect_equal(collect(x, chunk_size = 2L), collect(x, chunk_size = ncol(mat)))
+})
+
 test_that("broadcasting works for scalars and vectors", {
   set.seed(4)
   M <- matrix(rnorm(12), 3, 4)
@@ -214,8 +261,8 @@ test_that("comparisons return logical matrices", {
 test_that("reduce dims update lazily", {
   M <- matrix(1:12, 3, 4)
   X <- delarr(M)
-  expect_equal(dim(d_reduce(X, sum, dim = "rows")), c(1L, ncol(M)))
-  expect_equal(dim(d_reduce(X, sum, dim = "cols")), c(nrow(M), 1L))
+  expect_equal(dim(d_reduce(X, sum, dim = "rows")), c(nrow(M), 1L))
+  expect_equal(dim(d_reduce(X, sum, dim = "cols")), c(1L, ncol(M)))
 })
 
 test_that("NA-aware reductions work", {

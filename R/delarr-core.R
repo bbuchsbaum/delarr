@@ -105,9 +105,9 @@ dim.delarr <- function(x) {
     }
     if (op$op == "reduce") {
       if (identical(op$dim, "rows")) {
-        dims <- c(1L, dims[2])
-      } else {
         dims <- c(dims[1], 1L)
+      } else {
+        dims <- c(1L, dims[2])
       }
     }
   }
@@ -183,13 +183,30 @@ as.matrix.delarr <- function(x, ...) {
 Ops.delarr <- function(e1, e2) {
   op <- .Generic
   if (inherits(e1, "delarr") && inherits(e2, "delarr")) {
-    return(add_op(e1, list(op = "emap2", rhs = e2, fn = function(a, b) do.call(op, list(a, b)))))
+    return(add_op(e1, list(
+      op = "emap2",
+      op_name = op,
+      rhs = e2,
+      fn = function(a, b) do.call(op, list(a, b))
+    )))
   }
   if (inherits(e1, "delarr")) {
-    return(add_op(e1, list(op = "emap_const", const = e2, side = "right", fn = function(a, b) do.call(op, list(a, b)))))
+    return(add_op(e1, list(
+      op = "emap_const",
+      op_name = op,
+      const = e2,
+      side = "right",
+      fn = function(a, b) do.call(op, list(a, b))
+    )))
   }
   if (inherits(e2, "delarr")) {
-    return(add_op(e2, list(op = "emap_const", const = e1, side = "left", fn = function(a, b) do.call(op, list(a, b)))))
+    return(add_op(e2, list(
+      op = "emap_const",
+      op_name = op,
+      const = e1,
+      side = "left",
+      fn = function(a, b) do.call(op, list(a, b))
+    )))
   }
   stop("Operation not supported", call. = FALSE)
 }
