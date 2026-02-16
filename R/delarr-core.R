@@ -119,6 +119,7 @@ dim.delarr <- function(x) {
 #' @param x A `delarr`.
 #'
 #' @return A list of row and column names or `NULL` placeholders.
+#' @export
 dimnames.delarr <- function(x) {
   x$seed$dimnames %||% list(NULL, NULL)
 }

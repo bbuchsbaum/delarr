@@ -17,6 +17,7 @@ Imports:
     mmap
 Suggests:
     matrixStats,
+    shard,
     testthat (>= 3.1.0),
     knitr,
     rmarkdown

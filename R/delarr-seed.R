@@ -64,6 +64,7 @@ delarr_seed <- function(nrow, ncol, pull, chunk_hint = NULL, dimnames = NULL,
 #' @param x A `delarr_seed`.
 #'
 #' @return A two-element integer vector.
+#' @export
 dim.delarr_seed <- function(x) {
   c(x$nrow, x$ncol)
 }
