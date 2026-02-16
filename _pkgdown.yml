@@ -1,0 +1,67 @@
+url: https://bbuchsbaum.github.io/delarr/
+
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left:  [intro, reference, articles]
+    right: [search, github]
+
+reference:
+  - title: Core
+    contents:
+      - delarr
+      - delarr_seed
+      - collect
+      - block_apply
+
+  - title: Backends
+    contents:
+      - delarr_mem
+      - delarr_hdf5
+      - delarr_mmap
+      - delarr_backend
+
+  - title: Verbs
+    contents:
+      - d_map
+      - d_map2
+      - d_reduce
+      - d_reduce_many
+      - d_center
+      - d_scale
+      - d_zscore
+      - d_detrend
+      - d_where
+      - d_transpose
+      - d_matmul
+
+  - title: Summaries
+    contents:
+      - rowMeans2
+      - colMeans2
+
+  - title: HDF5 I/O
+    contents:
+      - write_hdf5
+      - read_hdf5
+      - hdf5_writer
+
+  - title: Utilities
+    contents:
+      - optimize_delarr
+      - explain
+      - profile_collect
+
+  - title: S3 Methods
+    contents:
+      - Ops.delarr
+      - as.matrix.delarr
+      - colMeans2.delarr
+      - dim.delarr
+      - dim.delarr_seed
+      - dimnames.delarr
+      - print.delarr
+      - rowMeans2.delarr
+      - "`[.delarr`"

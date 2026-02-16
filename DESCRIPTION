@@ -7,6 +7,8 @@ Authors@R:
            email = "ben@example.com")
 Description: Provides a lightweight delayed array abstraction with tidy-friendly
     verbs, expression fusion, and pluggable storage backends.
+URL: https://bbuchsbaum.github.io/delarr/, https://github.com/bbuchsbaum/delarr
+BugReports: https://github.com/bbuchsbaum/delarr/issues
 License: MIT + file LICENSE
 Depends: R (>= 4.1)
 Imports:

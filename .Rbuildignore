@@ -13,3 +13,5 @@
 ^\.omc$
 ^\.rcmdcheck_result\.rds$
 ^\.covr_result\.rds$
+^_pkgdown\.yml$
+^\.github$
