@@ -30,7 +30,7 @@ test_that("collect_shard with ops pipeline matches sequential", {
   set.seed(2)
   mat <- matrix(rnorm(40), 5, 8)
   darr <- delarr_shard(mat)
-  pipeline <- darr |> d_map(~ .x^2) |> d_center("cols")
+  pipeline <- darr |> d_map(function(x) x^2) |> d_center("cols")
   par_result <- collect_shard(pipeline, workers = 2)
   seq_result <- collect(pipeline)
   expect_equal(par_result, seq_result)
@@ -48,7 +48,7 @@ test_that("collect_shard with d_where", {
   set.seed(4)
   mat <- matrix(rnorm(20), 4, 5)
   darr <- delarr_shard(mat)
-  pipeline <- darr |> d_where(~ .x > 0, fill = 0)
+  pipeline <- darr |> d_where(function(x) x > 0, fill = 0)
   result <- collect_shard(pipeline, workers = 2)
   expect_equal(result, collect(pipeline))
 })
@@ -66,7 +66,7 @@ test_that("collect_shard with chunk boundary edge case", {
   mat <- matrix(rnorm(35), 5, 7)
   darr <- delarr_shard(mat)
   # Force chunk_size that doesn't divide n_cols evenly
-  result <- collect_shard(darr |> d_map(~ .x + 1), workers = 2, chunk_size = 3L)
+  result <- collect_shard(darr |> d_map(function(x) x + 1), workers = 2, chunk_size = 3L)
   expect_equal(result, mat + 1)
 })
 
@@ -106,7 +106,7 @@ test_that("row-reduction with ops before reduce", {
   set.seed(13)
   mat <- matrix(rnorm(40), 5, 8)
   darr <- delarr_shard(mat)
-  pipeline <- darr |> d_map(~ .x^2) |> d_reduce(sum, "rows")
+  pipeline <- darr |> d_map(function(x) x^2) |> d_reduce(sum, "rows")
   result <- collect_shard(pipeline, workers = 2)
   expect_equal(result, rowSums(mat^2))
 })
@@ -248,7 +248,7 @@ test_that("non-shard seed works with collect_shard", {
   set.seed(40)
   mat <- matrix(rnorm(20), 4, 5)
   darr <- delarr_mem(mat)
-  result <- collect_shard(darr |> d_map(~ .x * 3), workers = 2)
+  result <- collect_shard(darr |> d_map(function(x) x * 3), workers = 2)
   expect_equal(result, mat * 3)
 })
 
@@ -265,7 +265,7 @@ test_that("non-shard seed with reduction via collect_shard", {
 test_that("shard_writer works with collect(into=...)", {
   set.seed(50)
   mat <- matrix(rnorm(20), 4, 5)
-  darr <- delarr(mat) |> d_map(~ .x^2)
+  darr <- delarr(mat) |> d_map(function(x) x^2)
   w <- shard_writer(4, 5)
   collect(darr, into = w)
   result <- w$result()
@@ -276,7 +276,7 @@ test_that("shard_writer works with collect(into=...)", {
 test_that("shard_writer receives chunked output correctly", {
   set.seed(51)
   mat <- matrix(rnorm(35), 5, 7)
-  darr <- delarr(mat) |> d_map(~ .x + 10)
+  darr <- delarr(mat) |> d_map(function(x) x + 10)
   w <- shard_writer(5, 7)
   collect(darr, into = w, chunk_size = 2L)
   result <- w$result()
@@ -290,7 +290,7 @@ test_that("collect_shard with wider matrix and small chunks", {
   set.seed(60)
   mat <- matrix(rnorm(500), 10, 50)
   darr <- delarr_shard(mat)
-  result <- collect_shard(darr |> d_map(~ .x^2), workers = 2, chunk_size = 7L)
+  result <- collect_shard(darr |> d_map(function(x) x^2), workers = 2, chunk_size = 7L)
   expect_equal(result, mat^2)
 })
 
@@ -308,4 +308,258 @@ test_that("row-reduction on wide matrix matches base R", {
   darr <- delarr_shard(mat)
   result <- collect_shard(darr |> d_reduce(sum, "rows"), workers = 2, chunk_size = 11L)
   expect_equal(result, rowSums(mat))
+})
+
+# ---- Edge cases and degenerate inputs ---------------------------------------
+
+test_that("single-column matrix round-trip", {
+  mat <- matrix(1:5, 5, 1)
+  darr <- delarr_shard(mat)
+  expect_equal(collect_shard(darr, workers = 2), mat)
+})
+
+test_that("single-row matrix round-trip", {
+  mat <- matrix(as.double(1:8), 1, 8)
+  darr <- delarr_shard(mat)
+  expect_equal(collect_shard(darr, workers = 2), mat)
+})
+
+test_that("1x1 matrix round-trip", {
+  mat <- matrix(42.0, 1, 1)
+  darr <- delarr_shard(mat)
+  expect_equal(collect_shard(darr, workers = 2), mat)
+})
+
+test_that("more workers than columns still works", {
+  mat <- matrix(rnorm(6), 3, 2)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr, workers = 8)
+  expect_equal(result, mat)
+})
+
+test_that("integer matrix is accepted and round-trips", {
+  mat <- matrix(1:20, 4, 5)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr, workers = 2)
+  expect_equal(result, mat)
+})
+
+# ---- Column-wise center/scale/zscore (should parallelize, not fallback) -----
+
+test_that("col-center via collect_shard matches sequential", {
+  set.seed(70)
+  mat <- matrix(rnorm(40), 5, 8)
+  darr <- delarr_shard(mat)
+  pipeline <- darr |> d_center("cols")
+  par_result <- collect_shard(pipeline, workers = 2)
+  seq_result <- collect(pipeline)
+  expect_equal(par_result, seq_result)
+  expect_true(all(abs(colMeans(par_result)) < 1e-10))
+})
+
+test_that("col-scale via collect_shard matches sequential", {
+  set.seed(71)
+  mat <- matrix(rnorm(40), 5, 8)
+  darr <- delarr_shard(mat)
+  pipeline <- darr |> d_scale("cols")
+  par_result <- collect_shard(pipeline, workers = 2)
+  seq_result <- collect(pipeline)
+  expect_equal(par_result, seq_result)
+})
+
+test_that("col-zscore via collect_shard matches sequential", {
+  set.seed(72)
+  mat <- matrix(rnorm(40), 5, 8)
+  darr <- delarr_shard(mat)
+  pipeline <- darr |> d_zscore("cols")
+  par_result <- collect_shard(pipeline, workers = 2)
+  seq_result <- collect(pipeline)
+  expect_equal(par_result, seq_result)
+})
+
+# ---- Chunk-size invariance --------------------------------------------------
+
+test_that("different chunk sizes produce identical results (elementwise)", {
+  set.seed(80)
+  mat <- matrix(rnorm(60), 6, 10)
+  darr <- delarr_shard(mat)
+  pipeline <- darr |> d_map(function(x) log1p(abs(x)))
+  r3 <- collect_shard(pipeline, workers = 2, chunk_size = 3L)
+  r7 <- collect_shard(pipeline, workers = 2, chunk_size = 7L)
+  rall <- collect_shard(pipeline, workers = 2, chunk_size = 10L)
+  expect_equal(r3, r7)
+  expect_equal(r7, rall)
+})
+
+test_that("different chunk sizes produce identical results (row-reduction)", {
+  set.seed(81)
+  mat <- matrix(rnorm(60), 6, 10)
+  darr <- delarr_shard(mat)
+  pipeline <- darr |> d_reduce(sum, "rows")
+  r5 <- collect_shard(pipeline, workers = 2, chunk_size = 5L)
+  r10 <- collect_shard(pipeline, workers = 2, chunk_size = 10L)
+  expect_equal(r5, r10)
+  expect_equal(r10, rowSums(mat))
+})
+
+test_that("different chunk sizes produce identical results (col-reduction)", {
+  set.seed(82)
+  mat <- matrix(rnorm(60), 6, 10)
+  darr <- delarr_shard(mat)
+  pipeline <- darr |> d_reduce(mean, "cols")
+  r5 <- collect_shard(pipeline, workers = 2, chunk_size = 5L)
+  r10 <- collect_shard(pipeline, workers = 2, chunk_size = 10L)
+  expect_equal(r5, r10)
+  expect_equal(r10, colMeans(mat))
+})
+
+# ---- Chained operations ----------------------------------------------------
+
+test_that("multiple chained d_map ops", {
+  set.seed(90)
+  mat <- matrix(rnorm(30), 5, 6)
+  darr <- delarr_shard(mat)
+  pipeline <- darr |>
+    d_map(function(x) x^2) |>
+    d_map(function(x) sqrt(x)) |>
+    d_map(function(x) x + 1)
+  result <- collect_shard(pipeline, workers = 2)
+  expect_equal(result, abs(mat) + 1)
+})
+
+test_that("ops + col-center + more ops", {
+  set.seed(91)
+  mat <- matrix(rnorm(40), 5, 8)
+  darr <- delarr_shard(mat)
+  pipeline <- darr |> d_map(function(x) x * 2) |> d_center("cols") |> d_map(function(x) x^2)
+  par_result <- collect_shard(pipeline, workers = 2)
+  seq_result <- collect(pipeline)
+  expect_equal(par_result, seq_result)
+})
+
+# ---- Slicing + ops + reduction combos --------------------------------------
+
+test_that("slice then reduce (row)", {
+  set.seed(100)
+  mat <- matrix(rnorm(40), 5, 8)
+  darr <- delarr_shard(mat)
+  pipeline <- darr[2:4, 1:6] |> d_reduce(sum, "rows")
+  result <- collect_shard(pipeline, workers = 2)
+  expect_equal(result, rowSums(mat[2:4, 1:6]))
+})
+
+test_that("slice then reduce (col)", {
+  set.seed(101)
+  mat <- matrix(rnorm(40), 5, 8)
+  darr <- delarr_shard(mat)
+  pipeline <- darr[, 2:7] |> d_reduce(mean, "cols")
+  result <- collect_shard(pipeline, workers = 2)
+  expect_equal(result, colMeans(mat[, 2:7]))
+})
+
+test_that("slice + ops + reduce", {
+  set.seed(102)
+  mat <- matrix(rnorm(40), 5, 8)
+  darr <- delarr_shard(mat)
+  pipeline <- darr[1:3, ] |> d_map(function(x) x^2) |> d_reduce(max, "rows")
+  result <- collect_shard(pipeline, workers = 2)
+  expect_equal(result, apply(mat[1:3, ]^2, 1, max))
+})
+
+# ---- Scalar and vector broadcast --------------------------------------------
+
+test_that("scalar addition via Ops dispatches correctly", {
+  set.seed(110)
+  mat <- matrix(rnorm(20), 4, 5)
+  darr <- delarr_shard(mat)
+  expect_equal(collect_shard(darr + 10, workers = 2), mat + 10)
+  expect_equal(collect_shard(3 * darr, workers = 2), 3 * mat)
+  expect_equal(collect_shard(darr / 2, workers = 2), mat / 2)
+})
+
+test_that("comparison ops produce correct values via collect_shard", {
+  set.seed(111)
+  mat <- matrix(rnorm(20), 4, 5)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr > 0, workers = 2)
+  # shard::buffer("double") coerces logical to 0/1; verify values match
+  expect_equal(result, (mat > 0) * 1.0)
+})
+
+# ---- All-NA edge cases ------------------------------------------------------
+
+test_that("row-reduction on all-NA matrix", {
+  mat <- matrix(NA_real_, 3, 4)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr |> d_reduce(sum, "rows", na.rm = TRUE), workers = 2)
+  expect_true(all(is.na(result)))
+})
+
+test_that("col-reduction on all-NA matrix", {
+  mat <- matrix(NA_real_, 3, 4)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr |> d_reduce(mean, "cols", na.rm = TRUE), workers = 2)
+  expect_true(all(is.na(result)))
+})
+
+test_that("min row-reduction with all-NA rows returns NA", {
+  mat <- matrix(c(1, NA, NA, 2, NA, NA, 3, NA, NA), 3, 3)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr |> d_reduce(min, "rows", na.rm = TRUE), workers = 2)
+  seq_result <- collect(darr |> d_reduce(min, "rows", na.rm = TRUE))
+  expect_equal(result, seq_result)
+  # Row 2 and 3 are all-NA
+  expect_true(is.na(result[2]))
+  expect_true(is.na(result[3]))
+  expect_equal(result[1], 1)
+})
+
+# ---- Systematic parallel vs sequential agreement ---------------------------
+
+test_that("collect_shard agrees with collect across pipeline shapes", {
+  set.seed(120)
+  mat <- matrix(rnorm(60), 6, 10)
+  darr <- delarr_shard(mat)
+
+  pipelines <- list(
+    identity = darr,
+    squared = darr |> d_map(function(x) x^2),
+    times_two = darr * 2,
+    col_centered = darr |> d_center("cols"),
+    col_zscored = darr |> d_zscore("cols"),
+    sliced = darr[2:5, 3:8],
+    chained = darr |> d_map(function(x) abs(x)) |> d_map(function(x) log1p(x))
+  )
+
+  for (nm in names(pipelines)) {
+    p <- pipelines[[nm]]
+    par_r <- collect_shard(p, workers = 2, chunk_size = 3L)
+    seq_r <- collect(p)
+    expect_equal(par_r, seq_r, info = paste("pipeline:", nm))
+  }
+})
+
+test_that("reduction agreement across pipeline shapes", {
+  set.seed(121)
+  mat <- matrix(rnorm(60), 6, 10)
+  darr <- delarr_shard(mat)
+
+  configs <- list(
+    list(fn = sum,  dim = "rows"),
+    list(fn = mean, dim = "rows"),
+    list(fn = min,  dim = "rows"),
+    list(fn = max,  dim = "rows"),
+    list(fn = sum,  dim = "cols"),
+    list(fn = mean, dim = "cols"),
+    list(fn = min,  dim = "cols"),
+    list(fn = max,  dim = "cols")
+  )
+
+  for (cfg in configs) {
+    pipeline <- d_reduce(darr, cfg$fn, cfg$dim)
+    par_r <- collect_shard(pipeline, workers = 2, chunk_size = 3L)
+    seq_r <- collect(pipeline)
+    label <- paste(deparse(cfg$fn)[[1]], cfg$dim)
+    expect_equal(par_r, seq_r, info = label)
+  }
 })

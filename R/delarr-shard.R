@@ -169,7 +169,18 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
     src_rows <- seq_len(n_rows)
     src_cols <- seq_len(n_cols)
   }
-  on.exit(rm(src_shared), add = TRUE)
+  # For temporarily-created shared objects, deterministically close the
+  # underlying segment on exit.  Seed-owned shared objects are left alone.
+  owns_shared <- !inherits(seed, "delarr_shard_seed") || is.null(seed$shared)
+  on.exit({
+    if (owns_shared) {
+      tryCatch(
+        shard::segment_close(shard::shared_segment(src_shared)),
+        error = function(e) NULL
+      )
+    }
+    rm(src_shared)
+  }, add = TRUE)
 
   # ---- Resolve workers and chunk_size ---------------------------------------
   avail <- suppressWarnings(parallel::detectCores(logical = FALSE))
@@ -186,14 +197,18 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
   }
   chunk_size <- as.integer(min(chunk_size, n_cols))
 
-  # Capture context for worker closures. shard_map does not accept extra ...
-  # arguments — everything the worker needs comes from (a) the shard descriptor,
-  # (b) borrow/out lists, or (c) the closure environment.  We capture all
-  # context as local variables so closures serialize cleanly to workers.
-  .rows <- src_rows
-  .cols <- src_cols
-  .ops  <- plan$ops
-  .do_ops <- apply_ops   # capture the internal function directly
+  # Build worker closures in clean environments containing only the variables
+  # they need.  This prevents serialisation of the full collect_shard() frame
+  # (which holds the delarr, seed, plan, etc.) and avoids stack overflows when
+  # ops contain closures with deep environment chains.
+  make_worker_env <- function(...) {
+    e <- new.env(parent = globalenv())
+    args <- list(...)
+    for (nm in names(args)) e[[nm]] <- args[[nm]]
+    e
+  }
+
+  ops <- plan$ops
 
   # ---- Path A: Non-reduction (elementwise) ----------------------------------
   if (is.null(reduce_info)) {
@@ -201,13 +216,15 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
     on.exit(tryCatch(shard::buffer_close(out_buf), error = function(e) NULL),
             add = TRUE)
 
+    wenv <- make_worker_env(.rows = src_rows, .cols = src_cols, .ops = ops)
     worker_fn <- function(shard, src, buf) {
       pull_cols <- .cols[shard$idx]
       block <- src[.rows, pull_cols, drop = FALSE]
-      block <- .do_ops(block, .ops)
+      block <- delarr:::apply_ops(block, .ops)
       buf[, shard$idx] <- block
       NULL
     }
+    environment(worker_fn) <- wenv
 
     res <- shard::shard_map(
       shard::shards(n_cols, block_size = chunk_size, workers = n_workers),
@@ -229,13 +246,12 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
 
   # ---- Path B: Row-reduction ------------------------------------------------
   if (identical(reduce_info$dim, "rows")) {
-    .type  <- reduce_info$type
-    .na_rm <- reduce_info$na.rm
-
+    wenv <- make_worker_env(.rows = src_rows, .cols = src_cols, .ops = ops,
+                            .type = reduce_info$type, .na_rm = reduce_info$na.rm)
     worker_fn <- function(shard, src) {
       pull_cols <- .cols[shard$idx]
       block <- src[.rows, pull_cols, drop = FALSE]
-      block <- .do_ops(block, .ops)
+      block <- delarr:::apply_ops(block, .ops)
       partial <- switch(.type,
         sum  = rowSums(block, na.rm = .na_rm),
         mean = rowSums(block, na.rm = .na_rm),
@@ -249,6 +265,7 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
       }
       list(partial = partial, counts = counts)
     }
+    environment(worker_fn) <- wenv
 
     res <- shard::shard_map(
       shard::shards(n_cols, block_size = chunk_size, workers = n_workers),
@@ -266,17 +283,17 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
     }
 
     parts <- shard::results(res)
-    return(merge_row_reduction(parts, .type, .na_rm, n_rows, n_cols))
+    return(merge_row_reduction(parts, reduce_info$type, reduce_info$na.rm,
+                               n_rows, n_cols))
   }
 
   # ---- Path C: Column-reduction ---------------------------------------------
-  .type  <- reduce_info$type
-  .na_rm <- reduce_info$na.rm
-
+  wenv <- make_worker_env(.rows = src_rows, .cols = src_cols, .ops = ops,
+                          .type = reduce_info$type, .na_rm = reduce_info$na.rm)
   worker_fn <- function(shard, src) {
     pull_cols <- .cols[shard$idx]
     block <- src[.rows, pull_cols, drop = FALSE]
-    block <- .do_ops(block, .ops)
+    block <- delarr:::apply_ops(block, .ops)
     partial <- switch(.type,
       sum  = colSums(block, na.rm = .na_rm),
       mean = colSums(block, na.rm = .na_rm),
@@ -290,6 +307,7 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
     }
     list(partial = partial, counts = counts, positions = shard$idx)
   }
+  environment(worker_fn) <- wenv
 
   res <- shard::shard_map(
     shard::shards(n_cols, block_size = chunk_size, workers = n_workers),
@@ -307,7 +325,8 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
   }
 
   parts <- shard::results(res)
-  merge_col_reduction(parts, .type, .na_rm, n_rows, n_cols)
+  merge_col_reduction(parts, reduce_info$type, reduce_info$na.rm,
+                      n_rows, n_cols)
 }
 
 # ---- Merge helpers for reductions -------------------------------------------

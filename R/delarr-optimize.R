@@ -23,6 +23,15 @@ is_noop_const_op <- function(op) {
   FALSE
 }
 
+# Helper to fuse two emap functions without the closure-in-loop bug.
+# By calling a function, `f1` and `f2` are forced and captured in a fresh
+# execution frame, avoiding stale references when the loop continues.
+make_fused_fn <- function(f1, f2) {
+  force(f1)
+  force(f2)
+  function(m) f2(f1(m))
+}
+
 optimize_ops <- function(ops) {
   if (!length(ops)) {
     return(ops)
@@ -36,11 +45,9 @@ optimize_ops <- function(ops) {
         length(out) > 0 &&
         identical(out[[length(out)]]$op, "emap")) {
       prev <- out[[length(out)]]
-      prev_fn <- prev$fn
-      curr_fn <- op$fn
       out[[length(out)]] <- list(
         op = "emap",
-        fn = function(m) curr_fn(prev_fn(m))
+        fn = make_fused_fn(prev$fn, op$fn)
       )
       next
     }
