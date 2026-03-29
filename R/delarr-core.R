@@ -93,25 +93,15 @@ new_delarr <- function(seed, ops = list()) {
 #' @return An integer vector of length two.
 #' @export
 dim.delarr <- function(x) {
-  dims <- c(x$seed$nrow, x$seed$ncol)
-  for (op in x$ops) {
-    if (op$op == "slice") {
-      if (!is.null(op$rows)) {
-        dims[1] <- length(op$rows)
-      }
-      if (!is.null(op$cols)) {
-        dims[2] <- length(op$cols)
-      }
-    }
-    if (op$op == "reduce") {
-      if (identical(op$dim, "rows")) {
-        dims <- c(dims[1], 1L)
-      } else {
-        dims <- c(1L, dims[2])
-      }
-    }
+  plan <- compile_plan(x)
+  dims <- c(length(plan$rows), length(plan$cols))
+  if (is.null(plan$reduce)) {
+    return(dims)
   }
-  dims
+  if (identical(plan$reduce$dim, "rows")) {
+    return(c(dims[1], 1L))
+  }
+  c(1L, dims[2])
 }
 
 #' Dimension names for a delayed matrix
@@ -121,7 +111,22 @@ dim.delarr <- function(x) {
 #' @return A list of row and column names or `NULL` placeholders.
 #' @export
 dimnames.delarr <- function(x) {
-  x$seed$dimnames %||% list(NULL, NULL)
+  seed_dimnames <- x$seed$dimnames %||% list(NULL, NULL)
+  if (length(seed_dimnames) < 2L) {
+    seed_dimnames <- c(seed_dimnames, rep(list(NULL), 2L - length(seed_dimnames)))
+  }
+
+  plan <- compile_plan(x)
+  row_names <- if (is.null(seed_dimnames[[1L]])) NULL else seed_dimnames[[1L]][plan$rows]
+  col_names <- if (is.null(seed_dimnames[[2L]])) NULL else seed_dimnames[[2L]][plan$cols]
+
+  if (is.null(plan$reduce)) {
+    return(list(row_names, col_names))
+  }
+  if (identical(plan$reduce$dim, "rows")) {
+    return(list(row_names, NULL))
+  }
+  list(NULL, col_names)
 }
 
 #' Pretty-print a delayed matrix

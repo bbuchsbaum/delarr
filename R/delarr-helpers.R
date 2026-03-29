@@ -23,11 +23,20 @@ detrend_matrix <- function(mat, dim, degree) {
 
 where_mask <- function(mat, predicate, fill) {
   mask <- predicate(mat)
+  mask_dims <- dim(mask)
   if (!is.logical(mask)) {
     mask <- as.logical(mask)
+    if (!is.null(mask_dims)) {
+      dim(mask) <- mask_dims
+    }
   }
-  if (!all(dim(mask) == dim(mat))) {
+  if (is.null(mask_dims)) {
+    if (length(mask) != length(mat)) {
+      stop("predicate must return a conformable mask with one value per element", call. = FALSE)
+    }
     mask <- matrix(mask, nrow = nrow(mat), ncol = ncol(mat))
+  } else if (!identical(mask_dims, dim(mat))) {
+    stop("predicate must return a matrix mask conformable to the input", call. = FALSE)
   }
   if (length(fill) != 1L) {
     stop("fill must be a scalar value", call. = FALSE)

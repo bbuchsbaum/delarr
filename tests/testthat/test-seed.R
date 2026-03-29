@@ -94,3 +94,11 @@ test_that("pull_seed errors if pull does not return matrix", {
   )
   expect_error(pull_seed(seed), "Seed pull must return a matrix")
 })
+
+test_that("pull_seed errors if pull returns the wrong shape", {
+  seed <- delarr_seed(
+    nrow = 3, ncol = 4,
+    pull = function(rows = NULL, cols = NULL) matrix(0, 1, 1)
+  )
+  expect_error(pull_seed(seed, rows = 1:2, cols = 1:3), "expected 2x3")
+})

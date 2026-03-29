@@ -1,3 +1,5 @@
+utils::globalVariables(c(".cols", ".rows", ".ops", ".type", ".na_rm", ".apply_ops"))
+
 # ---- Dependency guard --------------------------------------------------------
 
 check_shard_available <- function() {
@@ -8,6 +10,15 @@ check_shard_available <- function() {
       call. = FALSE
     )
   }
+}
+
+shard_buffer_type <- function(x) {
+  switch(typeof(x),
+    logical = "logical",
+    integer = "integer",
+    double = "double",
+    "double"
+  )
 }
 
 # ---- delarr_shard: shared-memory backend ------------------------------------
@@ -121,11 +132,16 @@ shard_writer <- function(nrow, ncol, backing = "auto") {
 #' @return A materialised matrix or vector.
 #' @export
 #' @examples
+#' \donttest{
 #' if (requireNamespace("shard", quietly = TRUE)) {
+#'   old_conn <- getAllConnections()
 #'   mat <- matrix(rnorm(100), 10, 10)
 #'   darr <- delarr_shard(mat)
 #'   result <- collect_shard(darr |> d_map(~ .x^2), workers = 2)
 #'   all.equal(result, mat^2)
+#'   new_conn <- setdiff(getAllConnections(), old_conn)
+#'   for (con in new_conn) try(close(getConnection(con)), silent = TRUE)
+#' }
 #' }
 collect_shard <- function(x, workers = NULL, chunk_size = NULL,
                           optimize = TRUE) {
@@ -208,27 +224,81 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
     e
   }
 
+  bind_worker_helpers <- function(env) {
+    rehome <- function(fn) {
+      local_fn <- fn
+      environment(local_fn) <- env
+      local_fn
+    }
+    env$`%||%` <- `%||%`
+    env$broadcast_rhs <- rehome(broadcast_rhs)
+    env$fast_vector_broadcast_op <- rehome(fast_vector_broadcast_op)
+    env$subset_rhs_for_chunk <- rehome(subset_rhs_for_chunk)
+    env$safe_mean <- rehome(safe_mean)
+    env$safe_sd <- rehome(safe_sd)
+    env$safe_center <- rehome(safe_center)
+    env$safe_scale_matrix <- rehome(safe_scale_matrix)
+    env$detrend_matrix <- rehome(detrend_matrix)
+    env$where_mask <- rehome(where_mask)
+    env$apply_ops <- rehome(apply_ops)
+    env
+  }
+
   ops <- plan$ops
 
   # ---- Path A: Non-reduction (elementwise) ----------------------------------
   if (is.null(reduce_info)) {
-    out_buf <- shard::buffer("double", dim = c(n_rows, n_cols))
+    first_cols <- src_cols[seq_len(min(chunk_size, n_cols))]
+    first_block <- if (length(first_cols)) {
+      block <- src_shared[src_rows, first_cols, drop = FALSE]
+      apply_ops(
+        block,
+        ops,
+        chunk_context = list(
+          rows = seq_len(n_rows),
+          cols = seq_len(length(first_cols)),
+          full_nrow = n_rows,
+          full_ncol = n_cols
+        )
+      )
+    } else {
+      matrix(double(), nrow = n_rows, ncol = n_cols)
+    }
+
+    out_buf <- shard::buffer(shard_buffer_type(first_block), dim = c(n_rows, n_cols))
     on.exit(tryCatch(shard::buffer_close(out_buf), error = function(e) NULL),
             add = TRUE)
 
-    wenv <- make_worker_env(.rows = src_rows, .cols = src_cols, .ops = ops)
-    worker_fn <- function(shard, src, buf) {
+    wenv <- bind_worker_helpers(make_worker_env(
+      .rows = src_rows,
+      .cols = src_cols,
+      .ops = ops,
+      .n_rows = n_rows,
+      .n_cols = n_cols,
+      .apply_ops = NULL
+    ))
+    wenv$.apply_ops <- wenv$apply_ops
+    map_worker <- function(shard, src, buf) {
       pull_cols <- .cols[shard$idx]
       block <- src[.rows, pull_cols, drop = FALSE]
-      block <- delarr:::apply_ops(block, .ops)
+      block <- .apply_ops(
+        block,
+        .ops,
+        chunk_context = list(
+          rows = seq_len(.n_rows),
+          cols = shard$idx,
+          full_nrow = .n_rows,
+          full_ncol = .n_cols
+        )
+      )
       buf[, shard$idx] <- block
       NULL
     }
-    environment(worker_fn) <- wenv
+    environment(map_worker) <- wenv
 
     res <- shard::shard_map(
       shard::shards(n_cols, block_size = chunk_size, workers = n_workers),
-      fun = worker_fn,
+      fun = map_worker,
       borrow = list(src = src_shared),
       out = list(buf = out_buf),
       workers = n_workers,
@@ -246,12 +316,30 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
 
   # ---- Path B: Row-reduction ------------------------------------------------
   if (identical(reduce_info$dim, "rows")) {
-    wenv <- make_worker_env(.rows = src_rows, .cols = src_cols, .ops = ops,
-                            .type = reduce_info$type, .na_rm = reduce_info$na.rm)
-    worker_fn <- function(shard, src) {
+    wenv <- bind_worker_helpers(make_worker_env(
+      .rows = src_rows,
+      .cols = src_cols,
+      .ops = ops,
+      .n_rows = n_rows,
+      .n_cols = n_cols,
+      .type = reduce_info$type,
+      .na_rm = reduce_info$na.rm,
+      .apply_ops = NULL
+    ))
+    wenv$.apply_ops <- wenv$apply_ops
+    row_worker <- function(shard, src) {
       pull_cols <- .cols[shard$idx]
       block <- src[.rows, pull_cols, drop = FALSE]
-      block <- delarr:::apply_ops(block, .ops)
+      block <- .apply_ops(
+        block,
+        .ops,
+        chunk_context = list(
+          rows = seq_len(.n_rows),
+          cols = shard$idx,
+          full_nrow = .n_rows,
+          full_ncol = .n_cols
+        )
+      )
       partial <- switch(.type,
         sum  = rowSums(block, na.rm = .na_rm),
         mean = rowSums(block, na.rm = .na_rm),
@@ -265,11 +353,11 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
       }
       list(partial = partial, counts = counts)
     }
-    environment(worker_fn) <- wenv
+    environment(row_worker) <- wenv
 
     res <- shard::shard_map(
       shard::shards(n_cols, block_size = chunk_size, workers = n_workers),
-      fun = worker_fn,
+      fun = row_worker,
       borrow = list(src = src_shared),
       workers = n_workers,
       packages = "delarr",
@@ -288,12 +376,30 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
   }
 
   # ---- Path C: Column-reduction ---------------------------------------------
-  wenv <- make_worker_env(.rows = src_rows, .cols = src_cols, .ops = ops,
-                          .type = reduce_info$type, .na_rm = reduce_info$na.rm)
-  worker_fn <- function(shard, src) {
+  wenv <- bind_worker_helpers(make_worker_env(
+    .rows = src_rows,
+    .cols = src_cols,
+    .ops = ops,
+    .n_rows = n_rows,
+    .n_cols = n_cols,
+    .type = reduce_info$type,
+    .na_rm = reduce_info$na.rm,
+    .apply_ops = NULL
+  ))
+  wenv$.apply_ops <- wenv$apply_ops
+  col_worker <- function(shard, src) {
     pull_cols <- .cols[shard$idx]
     block <- src[.rows, pull_cols, drop = FALSE]
-    block <- delarr:::apply_ops(block, .ops)
+    block <- .apply_ops(
+      block,
+      .ops,
+      chunk_context = list(
+        rows = seq_len(.n_rows),
+        cols = shard$idx,
+        full_nrow = .n_rows,
+        full_ncol = .n_cols
+      )
+    )
     partial <- switch(.type,
       sum  = colSums(block, na.rm = .na_rm),
       mean = colSums(block, na.rm = .na_rm),
@@ -307,11 +413,11 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
     }
     list(partial = partial, counts = counts, positions = shard$idx)
   }
-  environment(worker_fn) <- wenv
+  environment(col_worker) <- wenv
 
   res <- shard::shard_map(
     shard::shards(n_cols, block_size = chunk_size, workers = n_workers),
-    fun = worker_fn,
+    fun = col_worker,
     borrow = list(src = src_shared),
     workers = n_workers,
     packages = "delarr",
@@ -436,4 +542,3 @@ merge_col_reduction <- function(parts, type, na_rm, n_rows, n_cols) {
   }
   acc
 }
-

@@ -80,3 +80,14 @@ test_that("collect with into=function callback works for reduce", {
   expect_null(result)
   expect_equal(captured, rowSums(mat))
 })
+
+test_that("hdf5_writer fails clearly for reduction outputs", {
+  tf <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf), add = TRUE)
+  darr <- delarr(matrix(1:12, 3, 4)) |> d_reduce(sum, dim = "rows")
+  writer <- hdf5_writer(tf, "X", ncol = 1)
+  expect_error(
+    collect(darr, into = writer),
+    "only supports matrix block outputs"
+  )
+})

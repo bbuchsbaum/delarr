@@ -76,5 +76,19 @@ pull_seed <- function(seed, rows = NULL, cols = NULL) {
   if (!is.matrix(res)) {
     stop("Seed pull must return a matrix", call. = FALSE)
   }
+  expected_nrow <- if (is.null(rows)) seed$nrow else length(rows)
+  expected_ncol <- if (is.null(cols)) seed$ncol else length(cols)
+  if (!identical(dim(res), c(expected_nrow, expected_ncol))) {
+    stop(
+      sprintf(
+        "Seed pull returned a %dx%d matrix, expected %dx%d",
+        nrow(res),
+        ncol(res),
+        expected_nrow,
+        expected_ncol
+      ),
+      call. = FALSE
+    )
+  }
   res
 }

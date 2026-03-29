@@ -51,3 +51,19 @@ test_that("where_mask rejects non-scalar fill", {
   expect_error(where_mask(mat, function(x) x > 0, fill = c(1, 2)),
                "fill must be a scalar")
 })
+
+test_that("where_mask rejects non-conformable vector masks", {
+  mat <- matrix(1:6, 2, 3)
+  expect_error(
+    where_mask(mat, function(x) c(TRUE, FALSE), fill = 0),
+    "one value per element"
+  )
+})
+
+test_that("where_mask rejects non-conformable matrix masks", {
+  mat <- matrix(1:6, 2, 3)
+  expect_error(
+    where_mask(mat, function(x) matrix(c(TRUE, FALSE), nrow = 1, ncol = 2), fill = 0),
+    "conformable to the input"
+  )
+})

@@ -71,7 +71,77 @@ broadcast_rhs <- function(lhs, rhs) {
   stop("Non-conformable RHS for binary operation", call. = FALSE)
 }
 
-apply_ops <- function(mat, ops, rhs_chunks = NULL) {
+fast_vector_broadcast_op <- function(mat, rhs, op_name, side = c("right", "left")) {
+  side <- match.arg(side)
+  if (!is.atomic(rhs) || is.matrix(rhs) || length(rhs) <= 1L) {
+    return(NULL)
+  }
+
+  nr <- nrow(mat)
+  nc <- ncol(mat)
+  margin <- if (length(rhs) == nr) {
+    1L
+  } else if (length(rhs) == nc) {
+    2L
+  } else {
+    return(NULL)
+  }
+
+  if (identical(side, "right")) {
+    return(sweep(mat, margin, rhs, FUN = op_name))
+  }
+
+  op_fun <- switch(op_name,
+    "+" = function(x, y) y + x,
+    "-" = function(x, y) y - x,
+    "*" = function(x, y) y * x,
+    "/" = function(x, y) y / x,
+    "^" = function(x, y) y ^ x,
+    "%%" = function(x, y) y %% x,
+    "%/%" = function(x, y) y %/% x,
+    "&" = function(x, y) y & x,
+    "|" = function(x, y) y | x,
+    "==" = function(x, y) y == x,
+    "!=" = function(x, y) y != x,
+    "<" = function(x, y) y < x,
+    "<=" = function(x, y) y <= x,
+    ">" = function(x, y) y > x,
+    ">=" = function(x, y) y >= x,
+    NULL
+  )
+  if (is.null(op_fun)) {
+    return(NULL)
+  }
+  sweep(mat, margin, rhs, FUN = op_fun)
+}
+
+subset_rhs_for_chunk <- function(rhs, chunk_context = NULL) {
+  if (is.null(rhs) || is.null(chunk_context)) {
+    return(rhs)
+  }
+
+  row_pos <- chunk_context$rows
+  col_pos <- chunk_context$cols
+  full_nrow <- chunk_context$full_nrow
+  full_ncol <- chunk_context$full_ncol
+
+  if (is.matrix(rhs) && all(dim(rhs) == c(full_nrow, full_ncol))) {
+    return(rhs[row_pos, col_pos, drop = FALSE])
+  }
+
+  if (is.atomic(rhs) && length(rhs) > 1L) {
+    if (!is.null(row_pos) && length(rhs) == full_nrow) {
+      return(rhs[row_pos])
+    }
+    if (!is.null(col_pos) && length(rhs) == full_ncol) {
+      return(rhs[col_pos])
+    }
+  }
+
+  rhs
+}
+
+apply_ops <- function(mat, ops, rhs_chunks = NULL, chunk_context = NULL) {
   if (!length(ops)) {
     return(mat)
   }
@@ -86,8 +156,17 @@ apply_ops <- function(mat, ops, rhs_chunks = NULL) {
         res
       },
       emap_const = {
-        const <- broadcast_rhs(mat, op$const)
-        if (identical(op$side, "right")) op$fn(mat, const) else op$fn(const, mat)
+        const <- subset_rhs_for_chunk(op$const, chunk_context)
+        fast <- NULL
+        if (!is.null(op$op_name)) {
+          fast <- fast_vector_broadcast_op(mat, const, op$op_name, op$side)
+        }
+        if (!is.null(fast)) {
+          fast
+        } else {
+          const <- broadcast_rhs(mat, const)
+          if (identical(op$side, "right")) op$fn(mat, const) else op$fn(const, mat)
+        }
       },
       emap2 = {
         rhs <- op$rhs
@@ -98,8 +177,17 @@ apply_ops <- function(mat, ops, rhs_chunks = NULL) {
             rhs <- collect(rhs)
           }
         }
-        rhs <- broadcast_rhs(mat, rhs)
-        op$fn(mat, rhs)
+        rhs <- subset_rhs_for_chunk(rhs, chunk_context)
+        fast <- NULL
+        if (!is.null(op$op_name)) {
+          fast <- fast_vector_broadcast_op(mat, rhs, op$op_name, "right")
+        }
+        if (!is.null(fast)) {
+          fast
+        } else {
+          rhs <- broadcast_rhs(mat, rhs)
+          op$fn(mat, rhs)
+        }
       },
       center = safe_center(mat, op$dim, op$na_rm %||% FALSE),
       scale = safe_scale_matrix(mat, op$dim, center = op$center, scale = op$scale, na.rm = op$na_rm %||% FALSE),
@@ -158,6 +246,27 @@ apply_reduce_full <- function(mat, reduce_op) {
     return(apply(mat, margin, function(x) fn(x, na.rm = na_rm)))
   }
   apply(mat, margin, fn)
+}
+
+apply_result_names <- function(result, out_dimnames, reduce_info = NULL) {
+  if (is.null(out_dimnames)) {
+    return(result)
+  }
+  if (is.matrix(result)) {
+    if (!any(vapply(out_dimnames, Negate(is.null), logical(1)))) {
+      return(result)
+    }
+    dimnames(result) <- out_dimnames
+    return(result)
+  }
+  if (!is.null(reduce_info) && is.atomic(result)) {
+    if (identical(reduce_info$dim, "rows")) {
+      names(result) <- out_dimnames[[1L]]
+    } else {
+      names(result) <- out_dimnames[[2L]]
+    }
+  }
+  result
 }
 
 classify_reduce <- function(reduce_op) {
@@ -255,10 +364,18 @@ collect <- function(x, into = NULL, chunk_size = NULL,
 
   seed <- x$seed
   plan <- compile_plan(x)
+  out_dimnames <- dimnames(x)
+  reduce_info <- classify_reduce(plan$reduce)
   rows <- plan$rows %||% seq_len(seed$nrow)
   cols <- plan$cols %||% seq_len(seed$ncol)
   n_rows <- length(rows)
   n_cols <- length(cols)
+  full_chunk_context <- list(
+    rows = seq_len(n_rows),
+    cols = seq_len(n_cols),
+    full_nrow = n_rows,
+    full_ncol = n_cols
+  )
 
   allow_parallel <- isTRUE(parallel) &&
     is.null(into) &&
@@ -291,12 +408,22 @@ collect <- function(x, into = NULL, chunk_size = NULL,
         rhs_rows <- rhs_plan$rows %||% seq_len(rhs_seed$nrow)
         rhs_cols <- rhs_plan$cols %||% seq_len(rhs_seed$ncol)
         rhs_mat <- pull_seed(rhs_seed, rows = rhs_rows, cols = rhs_cols)
-        rhs_mat <- apply_ops(rhs_mat, rhs_plan$ops)
+        rhs_mat <- apply_ops(
+          rhs_mat,
+          rhs_plan$ops,
+          chunk_context = list(
+            rows = seq_len(length(rhs_rows)),
+            cols = seq_len(length(rhs_cols)),
+            full_nrow = length(rhs_rows),
+            full_ncol = length(rhs_cols)
+          )
+        )
         rhs_chunks[[idx]] <- rhs_mat
       }
     }
-    mat <- apply_ops(mat, plan$ops, rhs_chunks)
+    mat <- apply_ops(mat, plan$ops, rhs_chunks, chunk_context = full_chunk_context)
     res <- apply_reduce_full(mat, plan$reduce)
+    res <- apply_result_names(res, out_dimnames, reduce_info)
     return(handle_collect_output(res, into))
   }
 
@@ -346,7 +473,25 @@ collect <- function(x, into = NULL, chunk_size = NULL,
           rhs_rows <- ctx$rows[pos]
           pull_seed(ctx$seed, rows = rhs_rows, cols = ctx$cols)
         }
-        rhs_block <- apply_ops(rhs_block, ctx$plan$ops)
+        rhs_block <- apply_ops(
+          rhs_block,
+          ctx$plan$ops,
+          chunk_context = if (identical(margin, "cols")) {
+            list(
+              rows = seq_len(length(ctx$rows)),
+              cols = pos,
+              full_nrow = length(ctx$rows),
+              full_ncol = length(ctx$cols)
+            )
+          } else {
+            list(
+              rows = pos,
+              cols = seq_len(length(ctx$cols)),
+              full_nrow = length(ctx$rows),
+              full_ncol = length(ctx$cols)
+            )
+          }
+        )
         chunks[[idx]] <- rhs_block
         next
       }
@@ -370,12 +515,12 @@ collect <- function(x, into = NULL, chunk_size = NULL,
     chunks
   }
 
-  reduce_info <- classify_reduce(plan$reduce)
   if (!is.null(reduce_info) && identical(reduce_info$type, "generic")) {
     block <- pull_seed(seed, rows = rows, cols = cols)
     rhs_chunks <- rhs_chunks_for(seq_len(n_cols))
-    block <- apply_ops(block, plan$ops, rhs_chunks)
+    block <- apply_ops(block, plan$ops, rhs_chunks, chunk_context = full_chunk_context)
     res <- apply_reduce_full(block, plan$reduce)
+    res <- apply_result_names(res, out_dimnames, reduce_info)
     return(handle_collect_output(res, into))
   }
 
@@ -411,13 +556,33 @@ collect <- function(x, into = NULL, chunk_size = NULL,
         pull_cols <- cols[pos]
         block <- pull_seed(seed, rows = rows, cols = pull_cols)
         rhs_chunks <- rhs_chunks_for(pos, margin = "cols")
-        block <- apply_ops(block, plan$ops, rhs_chunks)
+        block <- apply_ops(
+          block,
+          plan$ops,
+          rhs_chunks,
+          chunk_context = list(
+            rows = seq_len(n_rows),
+            cols = pos,
+            full_nrow = n_rows,
+            full_ncol = n_cols
+          )
+        )
         list(block = block, rows = rows, cols = pull_cols, positions = pos)
       } else {
         pull_rows <- rows[pos]
         block <- pull_seed(seed, rows = pull_rows, cols = cols)
         rhs_chunks <- rhs_chunks_for(pos, margin = "rows")
-        block <- apply_ops(block, plan$ops, rhs_chunks)
+        block <- apply_ops(
+          block,
+          plan$ops,
+          rhs_chunks,
+          chunk_context = list(
+            rows = pos,
+            cols = seq_len(n_cols),
+            full_nrow = n_rows,
+            full_ncol = n_cols
+          )
+        )
         list(block = block, rows = pull_rows, cols = cols, positions = pos)
       }
     }
@@ -431,6 +596,7 @@ collect <- function(x, into = NULL, chunk_size = NULL,
       for (piece in pieces) {
         result[, piece$positions] <- piece$block
       }
+      result <- apply_result_names(result, out_dimnames)
       return(result)
     }
 
@@ -452,6 +618,7 @@ collect <- function(x, into = NULL, chunk_size = NULL,
       }
     }
     if (is.null(into)) {
+      result <- apply_result_names(result, out_dimnames)
       return(result)
     }
     finalize_target(into)
@@ -473,7 +640,17 @@ collect <- function(x, into = NULL, chunk_size = NULL,
       pull_cols <- cols[pos]
       block <- pull_seed(seed, rows = rows, cols = pull_cols)
       rhs_chunks <- rhs_chunks_for(pos)
-      block <- apply_ops(block, plan$ops, rhs_chunks)
+      block <- apply_ops(
+        block,
+        plan$ops,
+        rhs_chunks,
+        chunk_context = list(
+          rows = seq_len(n_rows),
+          cols = pos,
+          full_nrow = n_rows,
+          full_ncol = n_cols
+        )
+      )
       if (type %in% c("sum", "mean")) {
         partial <- rowSums(block, na.rm = na_rm)
         acc <- acc + partial
@@ -506,6 +683,7 @@ collect <- function(x, into = NULL, chunk_size = NULL,
       if (!is.null(counts) && na_rm) {
         acc[counts == 0] <- NA_real_
       }
+      acc <- apply_result_names(acc, out_dimnames, reduce_info)
       return(handle_collect_output(acc, into))
     }
     if (identical(type, "mean")) {
@@ -516,11 +694,13 @@ collect <- function(x, into = NULL, chunk_size = NULL,
       } else {
         acc <- acc / n_cols
       }
+      acc <- apply_result_names(acc, out_dimnames, reduce_info)
       return(handle_collect_output(acc, into))
     }
     if (!is.null(counts) && na_rm) {
       acc[counts == 0] <- NA_real_
     }
+    acc <- apply_result_names(acc, out_dimnames, reduce_info)
     return(handle_collect_output(acc, into))
   }
 
@@ -536,7 +716,17 @@ collect <- function(x, into = NULL, chunk_size = NULL,
     pull_cols <- cols[pos]
     block <- pull_seed(seed, rows = rows, cols = pull_cols)
     rhs_chunks <- rhs_chunks_for(pos)
-    block <- apply_ops(block, plan$ops, rhs_chunks)
+    block <- apply_ops(
+      block,
+      plan$ops,
+      rhs_chunks,
+      chunk_context = list(
+        rows = seq_len(n_rows),
+        cols = pos,
+        full_nrow = n_rows,
+        full_ncol = n_cols
+      )
+    )
     if (type %in% c("sum", "mean")) {
       partial <- colSums(block, na.rm = na_rm)
       acc[pos] <- acc[pos] + partial
@@ -584,6 +774,7 @@ collect <- function(x, into = NULL, chunk_size = NULL,
   if (type %in% c("min", "max") && !is.null(counts) && na_rm) {
     acc[counts == 0] <- NA_real_
   }
+  acc <- apply_result_names(acc, out_dimnames, reduce_info)
   handle_collect_output(acc, into)
 }
 

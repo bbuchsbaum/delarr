@@ -259,6 +259,31 @@ test_that("broadcasting with matrix of same dimensions works", {
   expect_equal(result, mat1 + mat2)
 })
 
+test_that("broadcasting preserves non-commutative semantics for row and column vectors", {
+  mat <- matrix(as.double(1:12), 3, 4)
+  x <- delarr(mat)
+  row_vec <- c(10, 20, 30)
+  col_vec <- c(2, 4, 8, 16)
+
+  expect_equal(collect(x - row_vec, chunk_size = 2L), sweep(mat, 1L, row_vec, "-"))
+  expect_equal(
+    collect(row_vec - x, chunk_size = 2L),
+    matrix(row_vec, nrow(mat), ncol(mat)) - mat
+  )
+
+  expect_equal(collect(x / col_vec, chunk_size = 2L), sweep(mat, 2L, col_vec, "/"))
+  expect_equal(
+    collect(col_vec / x, chunk_size = 2L),
+    matrix(col_vec, nrow(mat), ncol(mat), byrow = TRUE) / mat
+  )
+
+  expect_identical(collect(x > col_vec, chunk_size = 2L), sweep(mat, 2L, col_vec, ">"))
+  expect_identical(
+    collect(row_vec <= x, chunk_size = 2L),
+    matrix(row_vec, nrow(mat), ncol(mat)) <= mat
+  )
+})
+
 test_that("broadcasting rejects matrix of wrong dimensions", {
   mat <- matrix(1:12, 3, 4)
   x <- delarr(mat)

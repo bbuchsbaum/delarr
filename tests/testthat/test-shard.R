@@ -44,6 +44,23 @@ test_that("collect_shard with arithmetic ops", {
   expect_equal(result, mat * 2 + 1)
 })
 
+test_that("collect_shard preserves logical output type for comparisons", {
+  set.seed(3)
+  mat <- matrix(rnorm(24), 4, 6)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr > 0, workers = 2)
+  expect_type(result, "logical")
+  expect_identical(result, mat > 0)
+})
+
+test_that("collect_shard preserves integer storage for integer matrices", {
+  mat <- matrix(1L:12L, 3, 4)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr, workers = 2)
+  expect_type(result, "integer")
+  expect_identical(result, mat)
+})
+
 test_that("collect_shard with d_where", {
   set.seed(4)
   mat <- matrix(rnorm(20), 4, 5)
@@ -482,8 +499,8 @@ test_that("comparison ops produce correct values via collect_shard", {
   mat <- matrix(rnorm(20), 4, 5)
   darr <- delarr_shard(mat)
   result <- collect_shard(darr > 0, workers = 2)
-  # shard::buffer("double") coerces logical to 0/1; verify values match
-  expect_equal(result, (mat > 0) * 1.0)
+  expect_type(result, "logical")
+  expect_identical(result, mat > 0)
 })
 
 # ---- All-NA edge cases ------------------------------------------------------

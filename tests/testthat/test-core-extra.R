@@ -32,6 +32,44 @@ test_that("as.matrix.delarr materialises", {
   expect_equal(result, mat)
 })
 
+test_that("dimnames.delarr follows slice and reduce semantics", {
+  mat <- matrix(
+    1:12,
+    3,
+    4,
+    dimnames = list(c("r1", "r2", "r3"), c("c1", "c2", "c3", "c4"))
+  )
+  x <- delarr(mat)
+
+  sliced <- x[c(3, 1), -2]
+  expect_equal(dimnames(sliced), dimnames(mat[c(3, 1), -2, drop = FALSE]))
+
+  row_reduced <- d_reduce(x[-1, 2:4], sum, "rows")
+  expect_equal(dimnames(row_reduced), list(rownames(mat[-1, 2:4, drop = FALSE]), NULL))
+
+  col_reduced <- d_reduce(x[c(3, 1), -2], sum, "cols")
+  expect_equal(dimnames(col_reduced), list(NULL, colnames(mat[c(3, 1), -2, drop = FALSE])))
+})
+
+test_that("collect and as.matrix preserve names", {
+  mat <- matrix(
+    1:12,
+    3,
+    4,
+    dimnames = list(c("r1", "r2", "r3"), c("c1", "c2", "c3", "c4"))
+  )
+
+  sliced <- delarr(mat)[c(3, 1), c(4, 2)]
+  expect_equal(collect(sliced), mat[c(3, 1), c(4, 2), drop = FALSE])
+  expect_equal(as.matrix(sliced), mat[c(3, 1), c(4, 2), drop = FALSE])
+
+  row_reduced <- d_reduce(delarr(mat)[, c(4, 2)], sum, "rows")
+  expect_equal(collect(row_reduced), rowSums(mat[, c(4, 2), drop = FALSE]))
+
+  col_reduced <- d_reduce(delarr(mat)[c(3, 1), ], sum, "cols")
+  expect_equal(collect(col_reduced), colSums(mat[c(3, 1), , drop = FALSE]))
+})
+
 test_that("print.delarr with no ops prints lazy", {
   mat <- matrix(1:6, 2, 3)
   x <- delarr(mat)
@@ -90,6 +128,15 @@ test_that("dim.delarr accounts for slice and reduce ops", {
   sliced <- x[1:2, 1:3]
   expect_equal(dim(sliced), c(2, 3))
 
+  neg_sliced <- x[-1, ]
+  expect_equal(dim(neg_sliced), c(3, 5))
+
+  logical_sliced <- x[c(TRUE, FALSE, TRUE, FALSE), c(FALSE, TRUE, TRUE, FALSE, TRUE)]
+  expect_equal(dim(logical_sliced), c(2, 3))
+
+  reordered <- x[c(4, 2, 2), c(5, 3)]
+  expect_equal(dim(reordered), c(3, 2))
+
   reduced <- d_reduce(x, sum, "rows")
   expect_equal(dim(reduced), c(4, 1))
 
@@ -143,6 +190,17 @@ test_that("block_apply with margin='rows' works", {
   expect_equal(length(res), 2L)
   expect_equal(res[[1]], rowMeans(mat[1:2, , drop = FALSE]))
   expect_equal(res[[2]], rowMeans(mat[3:4, , drop = FALSE]))
+})
+
+test_that("block_apply with row chunks respects sliced dimensions", {
+  mat <- matrix(1:20, 4, 5)
+  x <- delarr(mat)[-1, ]
+  res <- block_apply(x, margin = "rows", size = 2L, fn = function(chunk) {
+    rowSums(chunk)
+  })
+  expect_equal(length(res), 2L)
+  expect_equal(res[[1]], rowSums(mat[-1, , drop = FALSE][1:2, , drop = FALSE]))
+  expect_equal(res[[2]], rowSums(mat[-1, , drop = FALSE][3, , drop = FALSE]))
 })
 
 test_that("block_apply rejects non-function fn", {

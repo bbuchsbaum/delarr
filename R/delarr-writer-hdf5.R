@@ -157,6 +157,12 @@ hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression
 
   list(
     write = function(block, rows, cols, positions) {
+      if (!is.matrix(block)) {
+        stop("hdf5_writer() only supports matrix block outputs; use into=function(...) for reductions", call. = FALSE)
+      }
+      if (missing(positions) || is.null(positions)) {
+        stop("hdf5_writer() requires column positions for streamed matrix writes", call. = FALSE)
+      }
       ensure_dataset(block, positions)
       need_cols <- max(positions)
       if (need_cols > env$ncol) {
