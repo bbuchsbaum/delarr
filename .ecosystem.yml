@@ -1,0 +1,24 @@
+ecosystem: true
+package: delarr
+language: R
+role: transform
+tags:
+  - delayed-array
+  - lazy-evaluation
+  - chunked-processing
+  - matrix
+  - hdf5
+  - streaming
+entrypoints:
+  - delarr::delarr
+  - delarr::d_map
+  - delarr::d_reduce
+  - delarr::collect
+  - delarr::delarr_hdf5
+  - delarr::hdf5_writer
+howto_seeds:
+  - "How do I build a lazy delayed-array pipeline and collect the result?"
+  - "How do I reduce rows or columns lazily with delarr?"
+  - "How do I stream a transformed HDF5 dataset to disk without materializing it?"
+release_tag: eco-atlas
+asset: atlas-pack.tgz
