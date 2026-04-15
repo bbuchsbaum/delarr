@@ -1,10 +1,11 @@
 # delarr
 
-`delarr` provides a lightweight delayed matrix type for R with a tidy-friendly
+`delarr` provides a lightweight delayed array type for R with a tidy-friendly
 API. It keeps the surface area small—one S3 class plus a handful of verbs—while
-offering fused elementwise transforms, reductions, and streaming materialisation
-in column chunks. Column blocks can also be streamed straight to disk via the
-bundled HDF5 writer.
+offering fused elementwise transforms, reductions, and streamed materialisation.
+The package supports ordinary 2D matrices and N-dimensional arrays with
+`length(dim(x)) >= 2`. Streamed results can also be written straight to disk via
+the bundled HDF5 writer.
 
 ## Installation
 
@@ -33,6 +34,25 @@ out <- arr |>
 collect(out)
 ```
 
+### Multidimensional arrays
+
+`delarr` is not limited to matrices. In-memory arrays and HDF5 datasets with 3
+or more dimensions are supported too.
+
+```r
+library(delarr)
+
+x <- array(rnorm(3 * 4 * 5), dim = c(3, 4, 5))
+
+# Slice lazily and operate along an explicit axis
+out <- delarr(x) |>
+  d_center(axis = 3L) |>
+  d_reduce(mean, axis = 3L)
+
+dim(collect(out))
+#> [1] 3 4
+```
+
 ### Streaming straight to disk
 
 ```r
@@ -53,10 +73,13 @@ lzy |>
 
 ## Backends
 
-- `delarr_mem()` wraps any in-memory matrix.
-- `delarr_hdf5()` exposes a dataset through `hdf5r`.
+- `delarr_mem()` wraps any in-memory matrix or array with at least 2
+  dimensions.
+- `delarr_hdf5()` exposes a dataset through `hdf5r`, including N-dimensional
+  datasets.
 - `delarr_backend()` lets you create a seed from any `(rows, cols) -> matrix`
 pull function.
+- `delarr_mmap()` currently supports 2D matrices only.
 - `hdf5_writer()` pairs with `collect(into = ...)` to stream results back to
   disk without materialising the full matrix in memory (supply `ncol` to size
   the destination dataset up front).
@@ -68,13 +91,15 @@ pull function; no extra dependencies ship in the core package.
 
 - `d_map()/d_map2()` for elementwise transformations.
 - `d_center()/d_scale()/d_zscore()/d_detrend()` for common preprocessing, each
-  with optional `na.rm` handling.
-- `d_reduce()` for row-wise or column-wise reductions, with streaming
-  `na.rm` support for sum/mean/min/max.
+  with optional `na.rm` handling. For N-d arrays, use `axis =`.
+- `d_reduce()` for row-wise or column-wise reductions, or explicit
+  axis-based reductions on N-d arrays, with streaming `na.rm` support for
+  sum/mean/min/max.
 - `d_where()` for masked updates, optionally replacing masked entries via the
   `fill` argument.
 - `collect()` to realise the data (streamed in chunks), optionally writing to
   disk with `hdf5_writer()`, and `block_apply()` for chunk-wise computation.
+- `d_aperm()` for lazy dimension permutation on N-d arrays.
 
 All verbs return another `delarr`, so pipelines stay lazy until `collect()`
 materialises the result.

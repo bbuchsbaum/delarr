@@ -3,8 +3,8 @@ Type: Package
 Title: Lazy Delayed Arrays with Fused Execution
 Version: 0.0.0.9000
 Authors@R: 
-    person(given = "Ben", family = "Buchsbaum", role = c("aut", "cre"),
-           email = "ben@example.com")
+    person(given = "Bradley", family = "Buchsbaum", role = c("aut", "cre"),
+           email = "brad.buchsbaum@gmail.com")
 Description: Provides a lightweight delayed array abstraction with tidy-friendly
     verbs, expression fusion, and pluggable storage backends.
 URL: https://bbuchsbaum.github.io/delarr/, https://github.com/bbuchsbaum/delarr
