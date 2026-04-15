@@ -15,3 +15,9 @@
 ^\.covr_result\.rds$
 ^_pkgdown\.yml$
 ^\.github$
+^\.tmpcheck
+^delarr\.Rcheck$
+^\.\./\.Rcheck$
+^\.ecosystem\.yml$
+^atlas$
+^manual_cards\.jsonl$

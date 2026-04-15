@@ -142,15 +142,12 @@ hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression
     }
     env$nrow <- nrow(block)
     open_file("a")
-    empty <- matrix(
-      vector(mode = typeof(block), length = env$nrow * env$ncol),
-      nrow = env$nrow,
-      ncol = env$ncol
-    )
+    chunk_dims <- pmax(1L, pmin(as.integer(chunk), c(env$nrow, env$ncol)))
     env$dset <- env$file$create_dataset(
       name = dataset,
-      robj = empty,
-      chunk_dims = as.integer(chunk),
+      dtype = hdf5r::guess_dtype(block),
+      dims = c(env$nrow, env$ncol),
+      chunk_dims = chunk_dims,
       gzip_level = env$gzip_level
     )
   }
