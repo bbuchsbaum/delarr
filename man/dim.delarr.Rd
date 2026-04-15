@@ -2,7 +2,7 @@
 % Please edit documentation in R/delarr-core.R
 \name{dim.delarr}
 \alias{dim.delarr}
-\title{Dimensions of a delayed matrix}
+\title{Dimensions of a delayed array}
 \usage{
 \method{dim}{delarr}(x)
 }
@@ -10,7 +10,7 @@
 \item{x}{A \code{delarr}.}
 }
 \value{
-An integer vector of length two.
+An integer vector of dimension extents.
 }
 \description{
 Computes the realised dimensions after taking queued slice and reduce

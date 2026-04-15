@@ -2,7 +2,7 @@
 % Please edit documentation in R/delarr-core.R
 \name{dimnames.delarr}
 \alias{dimnames.delarr}
-\title{Dimension names for a delayed matrix}
+\title{Dimension names for a delayed array}
 \usage{
 \method{dimnames}{delarr}(x)
 }
@@ -10,8 +10,8 @@
 \item{x}{A \code{delarr}.}
 }
 \value{
-A list of row and column names or \code{NULL} placeholders.
+A list of per-dimension names or \code{NULL} placeholders.
 }
 \description{
-Dimension names for a delayed matrix
+Dimension names for a delayed array
 }

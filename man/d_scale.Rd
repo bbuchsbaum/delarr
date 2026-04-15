@@ -4,12 +4,21 @@
 \alias{d_scale}
 \title{Scale a delayed matrix along rows or columns}
 \usage{
-d_scale(x, dim = c("rows", "cols"), center = TRUE, scale = TRUE, na.rm = FALSE)
+d_scale(
+  x,
+  dim = c("rows", "cols"),
+  axis = NULL,
+  center = TRUE,
+  scale = TRUE,
+  na.rm = FALSE
+)
 }
 \arguments{
 \item{x}{A \code{delarr}.}
 
 \item{dim}{Dimension to scale.}
+
+\item{axis}{Integer axis for N-d arrays (alternative to \code{dim}).}
 
 \item{center}{Logical; subtract the mean before scaling.}
 

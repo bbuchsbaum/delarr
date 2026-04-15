@@ -2,16 +2,20 @@
 % Please edit documentation in R/delarr-verbs.R
 \name{d_reduce}
 \alias{d_reduce}
-\title{Reduce along rows or columns lazily}
+\title{Reduce along a dimension lazily}
 \usage{
-d_reduce(x, f = base::sum, dim = c("rows", "cols"), na.rm = FALSE)
+d_reduce(x, f = base::sum, dim = c("rows", "cols"), axis = NULL, na.rm = FALSE)
 }
 \arguments{
 \item{x}{A \code{delarr}.}
 
 \item{f}{A reduction function (defaults to \code{sum}).}
 
-\item{dim}{Dimension to reduce, either "rows" or "cols".}
+\item{dim}{Dimension to reduce: \code{"rows"} (keep rows, collapse cols) or
+\code{"cols"} (keep cols, collapse rows).}
+
+\item{axis}{Integer axis to collapse (alternative to \code{dim} for N-d arrays).
+Takes precedence over \code{dim} when both are supplied.}
 
 \item{na.rm}{Logical; remove missing values while reducing.}
 }
@@ -19,17 +23,16 @@ d_reduce(x, f = base::sum, dim = c("rows", "cols"), na.rm = FALSE)
 A \code{delarr} capturing the reduction.
 }
 \description{
-Reduce along rows or columns lazily
+For 2D arrays use \code{dim = "rows"} or \code{"cols"}. For N-d arrays you can
+also supply a numeric \code{axis} indicating which dimension to collapse.
 }
 \examples{
 mat <- matrix(1:12, nrow = 3, ncol = 4)
 darr <- delarr(mat)
 
-# Row sums (reduce across columns for each row)
 row_sums <- darr |> d_reduce(sum, dim = "rows") |> collect()
 row_sums
 
-# Column means (reduce across rows for each column)
 col_means <- darr |> d_reduce(mean, dim = "cols") |> collect()
 col_means
 

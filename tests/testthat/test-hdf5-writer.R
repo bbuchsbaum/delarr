@@ -72,6 +72,19 @@ test_that("hdf5_writer with NULL compression works", {
   expect_equal(result, data)
 })
 
+test_that("hdf5_writer creates datasets from integer blocks without materializing output", {
+  tf_out <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf_out), add = TRUE)
+
+  data <- matrix(1L:12L, 3, 4)
+  writer <- hdf5_writer(tf_out, "Y", ncol = ncol(data), compression = NULL)
+  collect(delarr(data), into = writer, chunk_size = 2L)
+
+  result <- read_hdf5(tf_out, "Y")
+  expect_equal(result, data)
+  expect_type(result, "integer")
+})
+
 test_that("collect with into=function callback works for reduce", {
   mat <- matrix(1:12, 3, 4)
   darr <- delarr(mat) |> d_reduce(sum, dim = "rows")

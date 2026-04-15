@@ -22,6 +22,10 @@ A \code{delarr} that streams data from the memory-mapped file.
 Uses the mmap package to lazily read slices from a binary file on demand.
 The file must contain raw numeric data in column-major order (R's default).
 }
+\note{
+This backend supports 2D matrices only. For N-d arrays, use
+\code{\link[=delarr_hdf5]{delarr_hdf5()}} or wrap an in-memory array with \code{\link[=delarr]{delarr()}}.
+}
 \examples{
 # Create a binary file with matrix data
 mat <- matrix(1:20, nrow = 4, ncol = 5)

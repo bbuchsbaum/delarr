@@ -31,10 +31,15 @@ detrend), paired RHS delarrs (\code{d_map2} with two delarrs), or generic
 (user-supplied) reductions automatically fall back to sequential \code{collect()}.
 }
 \examples{
+\donttest{
 if (requireNamespace("shard", quietly = TRUE)) {
+  old_conn <- getAllConnections()
   mat <- matrix(rnorm(100), 10, 10)
   darr <- delarr_shard(mat)
   result <- collect_shard(darr |> d_map(~ .x^2), workers = 2)
   all.equal(result, mat^2)
+  new_conn <- setdiff(getAllConnections(), old_conn)
+  for (con in new_conn) try(close(getConnection(con)), silent = TRUE)
+}
 }
 }

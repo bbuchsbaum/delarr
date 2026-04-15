@@ -113,6 +113,32 @@ test_that("delarr_hdf5 chunked streaming works", {
   expect_equal(result, data)
 })
 
+test_that("delarr_hdf5 reads 3D datasets correctly", {
+  tf <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf), add = TRUE)
+  data <- array(as.double(1:60), dim = c(3, 4, 5))
+  f <- hdf5r::H5File$new(tf, mode = "w")
+  f$create_dataset("X", robj = data)
+  f$close_all()
+
+  darr <- delarr_hdf5(tf, "X")
+  expect_equal(dim(darr), c(3, 4, 5))
+  expect_equal(collect(darr, chunk_size = 2L, chunk_margin = 3L), data)
+})
+
+test_that("delarr_hdf5 supports 3D lazy pipelines", {
+  tf <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf), add = TRUE)
+  data <- array(as.double(1:60), dim = c(3, 4, 5))
+  f <- hdf5r::H5File$new(tf, mode = "w")
+  f$create_dataset("X", robj = data)
+  f$close_all()
+
+  darr <- delarr_hdf5(tf, "X")
+  result <- collect(d_reduce(darr * 2, mean, axis = c(2L, 3L)), chunk_size = 2L, chunk_margin = 3L)
+  expect_equal(result, apply(data * 2, 1, mean))
+})
+
 test_that("delarr_mmap reads binary data correctly", {
   mat <- matrix(as.double(1:20), 4, 5)
   tf <- tempfile()

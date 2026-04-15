@@ -12,6 +12,14 @@ test_that("delarr_shard round-trip", {
   expect_equal(out, mat)
 })
 
+test_that("delarr_shard round-trip for 3D arrays", {
+  arr <- array(as.double(1:60), dim = c(3, 4, 5))
+  darr <- delarr_shard(arr)
+  expect_s3_class(darr, "delarr")
+  expect_equal(dim(darr), dim(arr))
+  expect_equal(collect_shard(darr, workers = 2, chunk_size = 2L), arr)
+})
+
 test_that("delarr_shard rejects non-numeric input", {
   expect_error(delarr_shard("abc"), "numeric matrix")
   expect_error(delarr_shard(1:10), "numeric matrix")
@@ -85,6 +93,26 @@ test_that("collect_shard with chunk boundary edge case", {
   # Force chunk_size that doesn't divide n_cols evenly
   result <- collect_shard(darr |> d_map(function(x) x + 1), workers = 2, chunk_size = 3L)
   expect_equal(result, mat + 1)
+})
+
+test_that("collect_shard supports N-d elementwise pipelines", {
+  arr <- array(as.double(1:60), dim = c(3, 4, 5))
+  darr <- delarr_shard(arr)
+  pipeline <- darr |> d_map(function(x) x + 1) |> d_where(function(x) x %% 2 == 0, fill = -1)
+  expect_equal(
+    collect_shard(pipeline, workers = 2, chunk_size = 2L),
+    collect(pipeline, chunk_size = 2L, chunk_margin = 3L)
+  )
+})
+
+test_that("collect_shard supports N-d reductions", {
+  arr <- array(as.double(1:120), dim = c(3, 4, 5, 2))
+  darr <- delarr_shard(arr)
+  pipeline <- darr |> d_reduce(mean, axis = c(2L, 4L))
+  expect_equal(
+    collect_shard(pipeline, workers = 2, chunk_size = 1L),
+    collect(pipeline, chunk_size = 1L, chunk_margin = 4L)
+  )
 })
 
 # ---- Row reductions (Path B) -----------------------------------------------

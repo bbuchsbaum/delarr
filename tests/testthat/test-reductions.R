@@ -73,6 +73,16 @@ test_that("chunked reductions match non-chunked for edge cases", {
   expect_equal(result_1[2], sum(1:8))  # Row with values
 })
 
+test_that("2D axis reductions collapse the requested dimensions", {
+  mat <- matrix(as.double(1:6), 2, 3)
+  x <- delarr(mat)
+
+  expect_equal(collect(d_reduce(x, sum, axis = 1L)), colSums(mat))
+  expect_equal(collect(d_reduce(x, sum, axis = 2L)), rowSums(mat))
+  expect_equal(collect(d_reduce(x, sum, axis = c(1L, 2L))), sum(mat))
+  expect_equal(collect(d_reduce(x, mean, axis = c(1L, 2L))), mean(mat))
+})
+
 test_that("reductions without na.rm return NA when any NA present", {
   # Matrix fills column-wise: row 1 = [1, 3], row 2 = [NA, 4]
   mat <- matrix(c(1, NA, 3, 4), 2, 2)

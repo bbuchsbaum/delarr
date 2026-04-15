@@ -4,12 +4,14 @@
 \alias{d_detrend}
 \title{Detrend a delayed matrix}
 \usage{
-d_detrend(x, dim = c("rows", "cols"), degree = 1L)
+d_detrend(x, dim = c("rows", "cols"), axis = NULL, degree = 1L)
 }
 \arguments{
 \item{x}{A \code{delarr}.}
 
 \item{dim}{Dimension along which to fit the trend.}
+
+\item{axis}{Integer axis for N-d arrays (alternative to \code{dim}).}
 
 \item{degree}{Polynomial degree (default 1).}
 }

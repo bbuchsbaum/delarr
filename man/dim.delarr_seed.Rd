@@ -10,7 +10,7 @@
 \item{x}{A \code{delarr_seed}.}
 }
 \value{
-A two-element integer vector.
+An integer vector of dimension extents.
 }
 \description{
 Dimensions for a \code{delarr_seed}

@@ -2,16 +2,14 @@
 % Please edit documentation in R/delarr-core.R
 \name{[.delarr}
 \alias{[.delarr}
-\title{Subset a delayed matrix}
+\title{Subset a delayed array}
 \usage{
-\method{[}{delarr}(x, i, j, drop = FALSE)
+\method{[}{delarr}(x, ..., drop = FALSE)
 }
 \arguments{
 \item{x}{A \code{delarr}.}
 
-\item{i}{Row indices or \code{NULL}.}
-
-\item{j}{Column indices or \code{NULL}.}
+\item{...}{Index expressions, one per dimension. Missing indices select all.}
 
 \item{drop}{Logical indicating whether to drop dimensions (ignored lazily).}
 }
@@ -19,5 +17,7 @@
 A \code{delarr} containing the slice operation.
 }
 \description{
-Performs matrix-style slicing lazily, capturing the indices in the DAG.
+Performs array-style slicing lazily, capturing the indices in the DAG.
+For 2D arrays, standard \code{x[i, j]} syntax works. For N-d arrays, provide
+one index expression per dimension: \code{x[i, j, k, ...]}.
 }

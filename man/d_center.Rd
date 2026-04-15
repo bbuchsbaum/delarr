@@ -4,12 +4,14 @@
 \alias{d_center}
 \title{Center a delayed matrix along rows or columns}
 \usage{
-d_center(x, dim = c("rows", "cols"), na.rm = FALSE)
+d_center(x, dim = c("rows", "cols"), axis = NULL, na.rm = FALSE)
 }
 \arguments{
 \item{x}{A \code{delarr}.}
 
 \item{dim}{Dimension along which to subtract the mean.}
+
+\item{axis}{Integer axis for N-d arrays (alternative to \code{dim}).}
 
 \item{na.rm}{Logical; remove missing values when computing the centre.}
 }

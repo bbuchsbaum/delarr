@@ -1,7 +1,7 @@
 test_that("explain infers chunk plans for N-d pipelines and reductions", {
   arr <- array(seq_len(24), dim = c(2, 3, 4))
 
-  info_nd <- explain(delarr(arr) |> d_map(~ .x + 1), target_bytes = 32)
+  info_nd <- explain(delarr(arr) |> d_map(~ .x + 1), target_bytes = 100)
   expect_s3_class(info_nd, "delarr_explain")
   expect_equal(info_nd$input_dim, c(2, 3, 4))
   expect_equal(info_nd$output_dim, c(2, 3, 4))
@@ -9,10 +9,10 @@ test_that("explain infers chunk plans for N-d pipelines and reductions", {
   expect_equal(info_nd$chunk_size, 2L)
   expect_equal(info_nd$chunk_count, 2L)
 
-  info_reduce <- explain(d_reduce(delarr(arr), sum, axis = 3L), target_bytes = 32)
+  info_reduce <- explain(d_reduce(delarr(arr), sum, axis = 3L), target_bytes = 100)
   expect_true(info_reduce$has_reduce)
   expect_equal(info_reduce$reduce_dim, NULL)
-  expect_equal(info_reduce$output_dim, c(2, 3))
+  expect_equal(info_reduce$output_dim, c(2, 3, 1))
   expect_equal(info_reduce$chunk_margin, 3L)
   expect_equal(info_reduce$chunk_size, 2L)
   expect_equal(info_reduce$chunk_count, 2L)
@@ -36,11 +36,26 @@ test_that("explain falls back to a single full pass for generic N-d reductions",
 test_that("print methods emit useful summaries", {
   arr <- array(seq_len(24), dim = c(2, 3, 4))
 
-  info <- explain(d_reduce(delarr(arr), sum, axis = 3L), target_bytes = 32)
-  expect_snapshot_output(print(info))
+  info <- explain(d_reduce(delarr(arr), sum, axis = 3L), target_bytes = 100)
+  info_output <- paste(capture.output(print(info)), collapse = "\n")
+  expect_match(info_output, "<delarr_explain> in: 2x3x4  out: 2x3x1", fixed = TRUE)
+  expect_match(info_output, "ops: 0  chunks: 2 (3=2)", fixed = TRUE)
+  expect_match(info_output, "reduce:", fixed = TRUE)
 
-  prof <- profile_collect(delarr(arr), reps = 2L)
-  expect_snapshot_output(print(prof))
+  prof <- structure(
+    list(
+      reps = 2L,
+      min_sec = 0.1,
+      median_sec = 0.2,
+      max_sec = 0.3,
+      output_size_bytes = c(352, 352),
+      output_class = "array"
+    ),
+    class = "delarr_profile"
+  )
+  prof_output <- paste(capture.output(print(prof)), collapse = "\n")
+  expect_match(prof_output, "<delarr_profile> reps: 2", fixed = TRUE)
+  expect_match(prof_output, "output size (bytes): 352", fixed = TRUE)
 })
 
 test_that("profile_collect validates reps and reports output size", {

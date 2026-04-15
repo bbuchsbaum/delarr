@@ -4,12 +4,14 @@
 \alias{d_zscore}
 \title{Z-score a delayed matrix}
 \usage{
-d_zscore(x, dim = c("rows", "cols"), na.rm = FALSE)
+d_zscore(x, dim = c("rows", "cols"), axis = NULL, na.rm = FALSE)
 }
 \arguments{
 \item{x}{A \code{delarr}.}
 
 \item{dim}{Dimension over which to compute the z-score.}
+
+\item{axis}{Integer axis for N-d arrays (alternative to \code{dim}).}
 
 \item{na.rm}{Logical; remove missing values when computing statistics.}
 }

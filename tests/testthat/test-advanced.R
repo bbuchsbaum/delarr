@@ -62,7 +62,10 @@ test_that("d_matmul reuses lhs panels across output column chunks", {
 
   expect_equal(out, a %*% b)
   expect_equal(lhs_tracker$pulls, ceiling(ncol(a) / inner_chunk))
-  expect_equal(rhs_tracker$pulls, ceiling(ncol(b) / outer_chunk))
+  expect_equal(
+    rhs_tracker$pulls,
+    ceiling(ncol(a) / inner_chunk) * ceiling(ncol(b) / outer_chunk)
+  )
 })
 
 test_that("d_matmul reuses rhs panels across output row chunks", {
@@ -105,7 +108,45 @@ test_that("d_matmul reuses rhs panels across output row chunks", {
 
   expect_equal(out, a %*% b)
   expect_equal(lhs_tracker$pulls, ceiling(nrow(a) / outer_chunk) * ceiling(ncol(a) / inner_chunk))
-  expect_equal(rhs_tracker$pulls, ceiling(ncol(b) / inner_chunk))
+  expect_equal(rhs_tracker$pulls, ceiling(ncol(a) / inner_chunk))
+})
+
+test_that("d_matmul blocks the contracted dimension instead of pulling full panels", {
+  set.seed(222)
+  a <- matrix(rnorm(35), 5, 7)
+  b <- matrix(rnorm(42), 7, 6)
+  lhs_tracker <- new.env(parent = emptyenv())
+  rhs_tracker <- new.env(parent = emptyenv())
+  lhs_tracker$max_cols <- 0L
+  rhs_tracker$max_rows <- 0L
+
+  x <- delarr(delarr_seed(
+    nrow = nrow(a),
+    ncol = ncol(a),
+    pull = function(rows = NULL, cols = NULL) {
+      rows <- rows %||% seq_len(nrow(a))
+      cols <- cols %||% seq_len(ncol(a))
+      lhs_tracker$max_cols <- max(lhs_tracker$max_cols, length(cols))
+      a[rows, cols, drop = FALSE]
+    }
+  ))
+  y <- delarr(delarr_seed(
+    nrow = nrow(b),
+    ncol = ncol(b),
+    pull = function(rows = NULL, cols = NULL) {
+      rows <- rows %||% seq_len(nrow(b))
+      cols <- cols %||% seq_len(ncol(b))
+      rhs_tracker$max_rows <- max(rhs_tracker$max_rows, length(rows))
+      b[rows, cols, drop = FALSE]
+    }
+  ))
+
+  inner_chunk <- 2L
+  out <- collect(d_matmul(x, y, chunk_size = inner_chunk), chunk_size = 3L)
+
+  expect_equal(out, a %*% b)
+  expect_lte(lhs_tracker$max_cols, inner_chunk)
+  expect_lte(rhs_tracker$max_rows, inner_chunk)
 })
 
 test_that("d_reduce_many returns named matrix summary", {
@@ -207,6 +248,25 @@ test_that("explain returns chunk plan metadata", {
   sliced <- explain(delarr(mat)[-1, ], chunk_size = 2L)
   expect_equal(sliced$output_dim, c(3, 5))
   expect_equal(sliced$selected_rows, 3L)
+})
+
+test_that("collect and explain accept numeric chunk axes for 2D inputs", {
+  mat <- matrix(rnorm(24), 4, 6)
+  x <- delarr(mat) |> d_map(~ .x + 1)
+
+  expect_equal(
+    collect(x, chunk_margin = 1L, chunk_size = 2L),
+    collect(x, chunk_margin = "rows", chunk_size = 2L)
+  )
+  expect_equal(
+    collect(x, chunk_margin = 2L, chunk_size = 3L),
+    collect(x, chunk_margin = "cols", chunk_size = 3L)
+  )
+
+  info_rows <- explain(x, chunk_margin = 1L, chunk_size = 2L)
+  info_cols <- explain(x, chunk_margin = 2L, chunk_size = 3L)
+  expect_equal(info_rows$chunk_margin, "rows")
+  expect_equal(info_cols$chunk_margin, "cols")
 })
 
 test_that("profile_collect runs repeated timings", {

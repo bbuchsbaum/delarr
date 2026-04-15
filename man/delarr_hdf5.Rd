@@ -2,7 +2,7 @@
 % Please edit documentation in R/delarr-backends.R
 \name{delarr_hdf5}
 \alias{delarr_hdf5}
-\title{Create a delayed matrix sourced from an HDF5 dataset}
+\title{Create a delayed array sourced from an HDF5 dataset}
 \usage{
 delarr_hdf5(path, dataset)
 }

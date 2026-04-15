@@ -20,6 +20,10 @@ Creates a writer object backed by \code{shard::buffer()} conforming to delarr's
 writer protocol. Pass to \code{collect(x, into = shard_writer(...))} to stream
 results into shared memory.
 }
+\note{
+This writer supports 2D matrices only. N-d array collection does not
+currently support writer-style \code{into} targets.
+}
 \examples{
 if (requireNamespace("shard", quietly = TRUE)) {
   mat <- matrix(rnorm(20), 4, 5)

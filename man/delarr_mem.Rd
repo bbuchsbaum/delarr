@@ -7,10 +7,11 @@
 delarr_mem(x)
 }
 \arguments{
-\item{x}{A numeric or logical matrix.}
+\item{x}{A numeric or logical matrix, or an array with at least 2
+dimensions.}
 }
 \value{
-A \code{delarr} referencing the original matrix.
+A \code{delarr} referencing the original object.
 }
 \description{
 Create a delayed matrix from an in-memory matrix

@@ -2,12 +2,12 @@
 % Please edit documentation in R/delarr-shard.R
 \name{delarr_shard}
 \alias{delarr_shard}
-\title{Create a delayed matrix backed by shared memory}
+\title{Create a delayed array backed by shared memory}
 \usage{
 delarr_shard(x, backing = "auto")
 }
 \arguments{
-\item{x}{A numeric matrix.}
+\item{x}{A numeric matrix or array.}
 
 \item{backing}{Backing type passed to \code{shard::share()}.}
 }
@@ -15,7 +15,8 @@ delarr_shard(x, backing = "auto")
 A \code{delarr} backed by shared memory.
 }
 \description{
-Wraps a numeric matrix into shard's shared memory, returning a \code{delarr}.
+Wraps a numeric matrix or array into shard's shared memory, returning a
+\code{delarr}.
 The shared ALTREP vector is stored on the seed so that \code{collect_shard()}
 can reuse it without re-sharing (zero-copy).
 }
