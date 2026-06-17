@@ -8,3 +8,7 @@
 .Rcheck/
 /doc/
 /Meta/
+# pkgdown site is built and published to the gh-pages branch by CI; never
+# committed to the default branch (a stray tracked docs/ file breaks the
+# CI clean_site() check).
+docs/
