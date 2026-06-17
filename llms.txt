@@ -1,11 +1,12 @@
 # delarr
 
-`delarr` provides a lightweight delayed matrix type for R with a
+`delarr` provides a lightweight delayed array type for R with a
 tidy-friendly API. It keeps the surface area small—one S3 class plus a
 handful of verbs—while offering fused elementwise transforms,
-reductions, and streaming materialisation in column chunks. Column
-blocks can also be streamed straight to disk via the bundled HDF5
-writer.
+reductions, and streamed materialisation. The package supports ordinary
+2D matrices and N-dimensional arrays with `length(dim(x)) >= 2`.
+Streamed results can also be written straight to disk via the bundled
+HDF5 writer.
 
 ## Installation
 
@@ -35,6 +36,25 @@ out <- arr |>
 collect(out)
 ```
 
+### Multidimensional arrays
+
+`delarr` is not limited to matrices. In-memory arrays and HDF5 datasets
+with 3 or more dimensions are supported too.
+
+``` r
+library(delarr)
+
+x <- array(rnorm(3 * 4 * 5), dim = c(3, 4, 5))
+
+# Slice lazily and operate along an explicit axis
+out <- delarr(x) |>
+  d_center(axis = 3L) |>
+  d_reduce(mean, axis = 3L)
+
+dim(collect(out))
+#> [1] 3 4
+```
+
 ### Streaming straight to disk
 
 ``` r
@@ -56,9 +76,12 @@ lzy |>
 ## Backends
 
 - [`delarr_mem()`](https://bbuchsbaum.github.io/delarr/reference/delarr_mem.md)
-  wraps any in-memory matrix.
+  wraps any in-memory matrix or array with at least 2 dimensions.
 - [`delarr_hdf5()`](https://bbuchsbaum.github.io/delarr/reference/delarr_hdf5.md)
-  exposes a dataset through `hdf5r`.
+  exposes a dataset through `hdf5r`, including N-dimensional datasets.
+- [`delarr_mmap()`](https://bbuchsbaum.github.io/delarr/reference/delarr_mmap.md)
+  streams 2D matrices from a memory-mapped binary file via the `mmap`
+  package.
 - [`delarr_backend()`](https://bbuchsbaum.github.io/delarr/reference/delarr_backend.md)
   lets you create a seed from any `(rows, cols) -> matrix` pull
   function.
@@ -67,18 +90,23 @@ lzy |>
   without materialising the full matrix in memory (supply `ncol` to size
   the destination dataset up front).
 
-Additional backends (e.g., mmap) can be layered on by supplying a
-compatible pull function; no extra dependencies ship in the core
-package.
+The core package depends only on `rlang`. The `hdf5r` and `mmap`
+backends are optional: they live in `Suggests`, and the relevant
+constructors raise an informative error if the package is not installed.
+You can also add new backends yourself via
+[`delarr_backend()`](https://bbuchsbaum.github.io/delarr/reference/delarr_backend.md)
+without taking on any extra dependency.
 
 ## Pipelined verbs
 
 - `d_map()/d_map2()` for elementwise transformations.
 - `d_center()/d_scale()/d_zscore()/d_detrend()` for common
-  preprocessing, each with optional `na.rm` handling.
+  preprocessing, each with optional `na.rm` handling. For N-d arrays,
+  use `axis =`.
 - [`d_reduce()`](https://bbuchsbaum.github.io/delarr/reference/d_reduce.md)
-  for row-wise or column-wise reductions, with streaming `na.rm` support
-  for sum/mean/min/max.
+  for row-wise or column-wise reductions, or explicit axis-based
+  reductions on N-d arrays, with streaming `na.rm` support for
+  sum/mean/min/max.
 - [`d_where()`](https://bbuchsbaum.github.io/delarr/reference/d_where.md)
   for masked updates, optionally replacing masked entries via the `fill`
   argument.
@@ -89,6 +117,8 @@ package.
   and
   [`block_apply()`](https://bbuchsbaum.github.io/delarr/reference/block_apply.md)
   for chunk-wise computation.
+- [`d_aperm()`](https://bbuchsbaum.github.io/delarr/reference/d_aperm.md)
+  for lazy dimension permutation on N-d arrays.
 
 All verbs return another `delarr`, so pipelines stay lazy until
 [`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md)
@@ -107,9 +137,27 @@ testthat::test_dir("tests/testthat")
 
 ## Roadmap
 
-- Add optional mmap and other backends once their APIs are finalised.
-- Introduce optional sparse adapters and BLAS helpers where it pays off.
-- Expand documentation with vignettes and performance benchmarks.
+The core abstraction is stable: the in-memory, HDF5, and memory-mapped
+backends, the fused verb pipeline, chunk-aware
+[`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md),
+the streaming HDF5 writer, and lazy matrix products
+([`d_matmul()`](https://bbuchsbaum.github.io/delarr/reference/d_matmul.md))
+are all implemented, documented, and tested. Two vignettes
+([`vignette("delarr-getting-started")`](https://bbuchsbaum.github.io/delarr/articles/delarr-getting-started.md)
+and
+[`vignette("advanced")`](https://bbuchsbaum.github.io/delarr/articles/advanced.md))
+cover the workflow end to end, and benchmark scripts live in `notes/`.
+
+Possible future directions, none of which are required for current use:
+
+- Optional sparse-matrix adapters, where a backend can return sparse
+  blocks without forcing them dense.
+- Writer-style `into=` targets for N-dimensional
+  [`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md)
+  (currently supported for 2D output and via custom
+  `into = function(...)` callbacks).
+- Promoting the `notes/` benchmarks into a dedicated performance
+  article.
 
 # Package index
 
@@ -123,6 +171,11 @@ testthat::test_dir("tests/testthat")
 
   Construct a seed backend for `delarr`
 
+- [`delarr_seed_nd()`](https://bbuchsbaum.github.io/delarr/reference/delarr_seed_nd.md)
+  :
+
+  Construct an N-dimensional seed backend for `delarr`
+
 - [`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md)
   : Materialise a delayed matrix
 
@@ -134,7 +187,7 @@ testthat::test_dir("tests/testthat")
 - [`delarr_mem()`](https://bbuchsbaum.github.io/delarr/reference/delarr_mem.md)
   : Create a delayed matrix from an in-memory matrix
 - [`delarr_hdf5()`](https://bbuchsbaum.github.io/delarr/reference/delarr_hdf5.md)
-  : Create a delayed matrix sourced from an HDF5 dataset
+  : Create a delayed array sourced from an HDF5 dataset
 - [`delarr_mmap()`](https://bbuchsbaum.github.io/delarr/reference/delarr_mmap.md)
   : Create a delayed matrix from a memory-mapped file
 - [`delarr_backend()`](https://bbuchsbaum.github.io/delarr/reference/delarr_backend.md)
@@ -142,12 +195,14 @@ testthat::test_dir("tests/testthat")
 
 ## Verbs
 
+- [`d_aperm()`](https://bbuchsbaum.github.io/delarr/reference/d_aperm.md)
+  : Permute dimensions of a delayed array
 - [`d_map()`](https://bbuchsbaum.github.io/delarr/reference/d_map.md) :
   Apply an elementwise transformation lazily
 - [`d_map2()`](https://bbuchsbaum.github.io/delarr/reference/d_map2.md)
   : Apply a binary elementwise transformation lazily
 - [`d_reduce()`](https://bbuchsbaum.github.io/delarr/reference/d_reduce.md)
-  : Reduce along rows or columns lazily
+  : Reduce along a dimension lazily
 - [`d_reduce_many()`](https://bbuchsbaum.github.io/delarr/reference/d_reduce_many.md)
   : Run multiple reductions and collect results
 - [`d_center()`](https://bbuchsbaum.github.io/delarr/reference/d_center.md)
@@ -186,6 +241,20 @@ testthat::test_dir("tests/testthat")
   HDF5 writer for streaming
   [`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md)
 
+## Shared-memory
+
+- [`delarr_shard()`](https://bbuchsbaum.github.io/delarr/reference/delarr_shard.md)
+  : Create a delayed array backed by shared memory
+
+- [`collect_shard()`](https://bbuchsbaum.github.io/delarr/reference/collect_shard.md)
+  : Parallel collect using shard's shared-memory workers
+
+- [`shard_writer()`](https://bbuchsbaum.github.io/delarr/reference/shard_writer.md)
+  :
+
+  Shared-memory writer for streaming
+  [`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md)
+
 ## Utilities
 
 - [`optimize_delarr()`](https://bbuchsbaum.github.io/delarr/reference/optimize_delarr.md)
@@ -215,7 +284,7 @@ testthat::test_dir("tests/testthat")
   : Column means for a delayed matrix
 
 - [`dim(`*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/dim.delarr.md)
-  : Dimensions of a delayed matrix
+  : Dimensions of a delayed array
 
 - [`dim(`*`<delarr_seed>`*`)`](https://bbuchsbaum.github.io/delarr/reference/dim.delarr_seed.md)
   :
@@ -223,7 +292,7 @@ testthat::test_dir("tests/testthat")
   Dimensions for a `delarr_seed`
 
 - [`dimnames(`*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/dimnames.delarr.md)
-  : Dimension names for a delayed matrix
+  : Dimension names for a delayed array
 
 - [`print(`*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/print.delarr.md)
   : Pretty-print a delayed matrix
@@ -232,11 +301,13 @@ testthat::test_dir("tests/testthat")
   : Row means for a delayed matrix
 
 - [`` `[`( ``*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/sub-.delarr.md)
-  : Subset a delayed matrix
+  : Subset a delayed array
 
 # Articles
 
 ### All vignettes
 
+- [Advanced Chunking and Backends in
+  delarr](https://bbuchsbaum.github.io/delarr/articles/advanced.md):
 - [Getting Started with
   delarr](https://bbuchsbaum.github.io/delarr/articles/delarr-getting-started.md):

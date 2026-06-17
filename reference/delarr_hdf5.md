@@ -1,4 +1,4 @@
-# Create a delayed matrix sourced from an HDF5 dataset
+# Create a delayed array sourced from an HDF5 dataset
 
 Uses `hdf5r` to lazily read slices from disk on demand.
 

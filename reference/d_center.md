@@ -5,7 +5,7 @@ Center a delayed matrix along rows or columns
 ## Usage
 
 ``` r
-d_center(x, dim = c("rows", "cols"), na.rm = FALSE)
+d_center(x, dim = c("rows", "cols"), axis = NULL, na.rm = FALSE)
 ```
 
 ## Arguments
@@ -17,6 +17,10 @@ d_center(x, dim = c("rows", "cols"), na.rm = FALSE)
 - dim:
 
   Dimension along which to subtract the mean.
+
+- axis:
+
+  Integer axis for N-d arrays (alternative to `dim`).
 
 - na.rm:
 

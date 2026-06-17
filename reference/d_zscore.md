@@ -5,7 +5,7 @@ Equivalent to centering and scaling with unit variance.
 ## Usage
 
 ``` r
-d_zscore(x, dim = c("rows", "cols"), na.rm = FALSE)
+d_zscore(x, dim = c("rows", "cols"), axis = NULL, na.rm = FALSE)
 ```
 
 ## Arguments
@@ -17,6 +17,10 @@ d_zscore(x, dim = c("rows", "cols"), na.rm = FALSE)
 - dim:
 
   Dimension over which to compute the z-score.
+
+- axis:
+
+  Integer axis for N-d arrays (alternative to `dim`).
 
 - na.rm:
 

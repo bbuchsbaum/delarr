@@ -1,4 +1,4 @@
-# Dimensions of a delayed matrix
+# Dimensions of a delayed array
 
 Computes the realised dimensions after taking queued slice and reduce
 operations into account.
@@ -18,4 +18,4 @@ dim(x)
 
 ## Value
 
-An integer vector of length two.
+An integer vector of dimension extents.

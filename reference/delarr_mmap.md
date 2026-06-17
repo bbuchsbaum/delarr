@@ -32,6 +32,13 @@ delarr_mmap(path, nrow, ncol, mode = NULL)
 
 A `delarr` that streams data from the memory-mapped file.
 
+## Note
+
+This backend supports 2D matrices only. For N-d arrays, use
+[`delarr_hdf5()`](https://bbuchsbaum.github.io/delarr/reference/delarr_hdf5.md)
+or wrap an in-memory array with
+[`delarr()`](https://bbuchsbaum.github.io/delarr/reference/delarr.md).
+
 ## Examples
 
 ``` r

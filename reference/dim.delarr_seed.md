@@ -17,4 +17,4 @@ dim(x)
 
 ## Value
 
-A two-element integer vector.
+An integer vector of dimension extents.

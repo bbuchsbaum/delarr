@@ -10,6 +10,11 @@
 
   Construct a seed backend for `delarr`
 
+- [`delarr_seed_nd()`](https://bbuchsbaum.github.io/delarr/reference/delarr_seed_nd.md)
+  :
+
+  Construct an N-dimensional seed backend for `delarr`
+
 - [`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md)
   : Materialise a delayed matrix
 
@@ -21,7 +26,7 @@
 - [`delarr_mem()`](https://bbuchsbaum.github.io/delarr/reference/delarr_mem.md)
   : Create a delayed matrix from an in-memory matrix
 - [`delarr_hdf5()`](https://bbuchsbaum.github.io/delarr/reference/delarr_hdf5.md)
-  : Create a delayed matrix sourced from an HDF5 dataset
+  : Create a delayed array sourced from an HDF5 dataset
 - [`delarr_mmap()`](https://bbuchsbaum.github.io/delarr/reference/delarr_mmap.md)
   : Create a delayed matrix from a memory-mapped file
 - [`delarr_backend()`](https://bbuchsbaum.github.io/delarr/reference/delarr_backend.md)
@@ -29,12 +34,14 @@
 
 ## Verbs
 
+- [`d_aperm()`](https://bbuchsbaum.github.io/delarr/reference/d_aperm.md)
+  : Permute dimensions of a delayed array
 - [`d_map()`](https://bbuchsbaum.github.io/delarr/reference/d_map.md) :
   Apply an elementwise transformation lazily
 - [`d_map2()`](https://bbuchsbaum.github.io/delarr/reference/d_map2.md)
   : Apply a binary elementwise transformation lazily
 - [`d_reduce()`](https://bbuchsbaum.github.io/delarr/reference/d_reduce.md)
-  : Reduce along rows or columns lazily
+  : Reduce along a dimension lazily
 - [`d_reduce_many()`](https://bbuchsbaum.github.io/delarr/reference/d_reduce_many.md)
   : Run multiple reductions and collect results
 - [`d_center()`](https://bbuchsbaum.github.io/delarr/reference/d_center.md)
@@ -73,6 +80,20 @@
   HDF5 writer for streaming
   [`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md)
 
+## Shared-memory
+
+- [`delarr_shard()`](https://bbuchsbaum.github.io/delarr/reference/delarr_shard.md)
+  : Create a delayed array backed by shared memory
+
+- [`collect_shard()`](https://bbuchsbaum.github.io/delarr/reference/collect_shard.md)
+  : Parallel collect using shard's shared-memory workers
+
+- [`shard_writer()`](https://bbuchsbaum.github.io/delarr/reference/shard_writer.md)
+  :
+
+  Shared-memory writer for streaming
+  [`collect()`](https://bbuchsbaum.github.io/delarr/reference/collect.md)
+
 ## Utilities
 
 - [`optimize_delarr()`](https://bbuchsbaum.github.io/delarr/reference/optimize_delarr.md)
@@ -102,7 +123,7 @@
   : Column means for a delayed matrix
 
 - [`dim(`*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/dim.delarr.md)
-  : Dimensions of a delayed matrix
+  : Dimensions of a delayed array
 
 - [`dim(`*`<delarr_seed>`*`)`](https://bbuchsbaum.github.io/delarr/reference/dim.delarr_seed.md)
   :
@@ -110,7 +131,7 @@
   Dimensions for a `delarr_seed`
 
 - [`dimnames(`*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/dimnames.delarr.md)
-  : Dimension names for a delayed matrix
+  : Dimension names for a delayed array
 
 - [`print(`*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/print.delarr.md)
   : Pretty-print a delayed matrix
@@ -119,4 +140,4 @@
   : Row means for a delayed matrix
 
 - [`` `[`( ``*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/sub-.delarr.md)
-  : Subset a delayed matrix
+  : Subset a delayed array

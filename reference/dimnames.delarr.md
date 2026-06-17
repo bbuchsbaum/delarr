@@ -1,6 +1,6 @@
-# Dimension names for a delayed matrix
+# Dimension names for a delayed array
 
-Dimension names for a delayed matrix
+Dimension names for a delayed array
 
 ## Usage
 
@@ -17,4 +17,4 @@ dimnames(x)
 
 ## Value
 
-A list of row and column names or `NULL` placeholders.
+A list of per-dimension names or `NULL` placeholders.

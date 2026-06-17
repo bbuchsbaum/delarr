@@ -6,7 +6,7 @@ dimension.
 ## Usage
 
 ``` r
-d_detrend(x, dim = c("rows", "cols"), degree = 1L)
+d_detrend(x, dim = c("rows", "cols"), axis = NULL, degree = 1L)
 ```
 
 ## Arguments
@@ -18,6 +18,10 @@ d_detrend(x, dim = c("rows", "cols"), degree = 1L)
 - dim:
 
   Dimension along which to fit the trend.
+
+- axis:
+
+  Integer axis for N-d arrays (alternative to `dim`).
 
 - degree:
 

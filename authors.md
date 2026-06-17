@@ -2,7 +2,7 @@
 
 ## Authors
 
-- **Ben Buchsbaum**. Author, maintainer.
+- **Bradley Buchsbaum**. Author, maintainer.
 
 ## Citation
 
@@ -10,12 +10,12 @@ Source:
 [`DESCRIPTION`](https://github.com/bbuchsbaum/delarr/blob/main/DESCRIPTION)
 
 Buchsbaum B (2026). *delarr: Lazy Delayed Arrays with Fused Execution*.
-R package version 0.0.0.9000, <https://bbuchsbaum.github.io/delarr/>.
+R package version 0.1.0, <https://bbuchsbaum.github.io/delarr/>.
 
     @Manual{,
       title = {delarr: Lazy Delayed Arrays with Fused Execution},
-      author = {Ben Buchsbaum},
+      author = {Bradley Buchsbaum},
       year = {2026},
-      note = {R package version 0.0.0.9000},
+      note = {R package version 0.1.0},
       url = {https://bbuchsbaum.github.io/delarr/},
     }

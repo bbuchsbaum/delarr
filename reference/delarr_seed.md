@@ -72,6 +72,9 @@ seed
 #> $ncol
 #> [1] 4
 #> 
+#> $dims
+#> [1] 3 4
+#> 
 #> $pull
 #> function (rows = NULL, cols = NULL) 
 #> {
@@ -79,7 +82,7 @@ seed
 #>     cols <- cols %||% seq_len(4)
 #>     data[rows, cols, drop = FALSE]
 #> }
-#> <environment: 0x55b74e53feb0>
+#> <environment: 0x55f3e6f05ad0>
 #> 
 #> $chunk_hint
 #> NULL

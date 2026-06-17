@@ -1,12 +1,14 @@
-# Subset a delayed matrix
+# Subset a delayed array
 
-Performs matrix-style slicing lazily, capturing the indices in the DAG.
+Performs array-style slicing lazily, capturing the indices in the DAG.
+For 2D arrays, standard `x[i, j]` syntax works. For N-d arrays, provide
+one index expression per dimension: `x[i, j, k, ...]`.
 
 ## Usage
 
 ``` r
 # S3 method for class 'delarr'
-x[i, j, drop = FALSE]
+x[..., drop = FALSE]
 ```
 
 ## Arguments
@@ -15,13 +17,9 @@ x[i, j, drop = FALSE]
 
   A `delarr`.
 
-- i:
+- ...:
 
-  Row indices or `NULL`.
-
-- j:
-
-  Column indices or `NULL`.
+  Index expressions, one per dimension. Missing indices select all.
 
 - drop:
 

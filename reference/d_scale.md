@@ -5,7 +5,14 @@ Scale a delayed matrix along rows or columns
 ## Usage
 
 ``` r
-d_scale(x, dim = c("rows", "cols"), center = TRUE, scale = TRUE, na.rm = FALSE)
+d_scale(
+  x,
+  dim = c("rows", "cols"),
+  axis = NULL,
+  center = TRUE,
+  scale = TRUE,
+  na.rm = FALSE
+)
 ```
 
 ## Arguments
@@ -17,6 +24,10 @@ d_scale(x, dim = c("rows", "cols"), center = TRUE, scale = TRUE, na.rm = FALSE)
 - dim:
 
   Dimension to scale.
+
+- axis:
+
+  Integer axis for N-d arrays (alternative to `dim`).
 
 - center:
 

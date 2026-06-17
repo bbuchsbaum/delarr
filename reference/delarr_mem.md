@@ -12,11 +12,11 @@ delarr_mem(x)
 
 - x:
 
-  A numeric or logical matrix.
+  A numeric or logical matrix, or an array with at least 2 dimensions.
 
 ## Value
 
-A `delarr` referencing the original matrix.
+A `delarr` referencing the original object.
 
 ## Examples
 
