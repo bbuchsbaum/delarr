@@ -53,14 +53,23 @@ d_map2 <- function(x, y, f) {
   if (!(inherits(y, "delarr") || is.numeric(y) || is.matrix(y))) {
     stop("y must be a delarr or numeric", call. = FALSE)
   }
+  if (!inherits(y, "delarr")) {
+    warn_if_ambiguous_broadcast(x, y)
+  }
   add_op(x, list(op = "emap2", rhs = y, fn = fn))
 }
 
-#' Reduce along rows or columns lazily
+#' Reduce along a dimension lazily
+#'
+#' For 2D arrays use `dim = "rows"` or `"cols"`. For N-d arrays you can
+#' also supply a numeric `axis` indicating which dimension to collapse.
 #'
 #' @param x A `delarr`.
 #' @param f A reduction function (defaults to `sum`).
-#' @param dim Dimension to reduce, either "rows" or "cols".
+#' @param dim Dimension to reduce: `"rows"` (keep rows, collapse cols) or
+#'   `"cols"` (keep cols, collapse rows).
+#' @param axis Integer axis to collapse (alternative to `dim` for N-d arrays).
+#'   Takes precedence over `dim` when both are supplied.
 #' @param na.rm Logical; remove missing values while reducing.
 #'
 #' @return A `delarr` capturing the reduction.
@@ -69,26 +78,31 @@ d_map2 <- function(x, y, f) {
 #' mat <- matrix(1:12, nrow = 3, ncol = 4)
 #' darr <- delarr(mat)
 #'
-#' # Row sums (reduce across columns for each row)
 #' row_sums <- darr |> d_reduce(sum, dim = "rows") |> collect()
 #' row_sums
 #'
-#' # Column means (reduce across rows for each column)
 #' col_means <- darr |> d_reduce(mean, dim = "cols") |> collect()
 #' col_means
 #'
 #' @export
-d_reduce <- function(x, f = base::sum, dim = c("rows", "cols"), na.rm = FALSE) {
+d_reduce <- function(x, f = base::sum, dim = c("rows", "cols"), axis = NULL,
+                     na.rm = FALSE) {
   stopifnot(inherits(x, "delarr"))
-  dim <- match.arg(dim)
   fn <- match.fun(f)
-  add_op(x, list(op = "reduce", fn = fn, dim = dim, na_rm = isTRUE(na.rm)))
+  op <- list(op = "reduce", fn = fn, na_rm = isTRUE(na.rm))
+  if (!is.null(axis)) {
+    op$axis <- normalize_axes(axis, length(x$seed$dims))
+  } else {
+    op$dim <- match.arg(dim)
+  }
+  add_op(x, op)
 }
 
 #' Center a delayed matrix along rows or columns
 #'
 #' @param x A `delarr`.
 #' @param dim Dimension along which to subtract the mean.
+#' @param axis Integer axis for N-d arrays (alternative to `dim`).
 #' @param na.rm Logical; remove missing values when computing the centre.
 #'
 #' @return A `delarr` with a deferred centering operation.
@@ -105,16 +119,22 @@ d_reduce <- function(x, f = base::sum, dim = c("rows", "cols"), na.rm = FALSE) {
 #' # Center columns (subtract column means)
 #' centered_cols <- darr |> d_center(dim = "cols") |> collect()
 #' colMeans(centered_cols)  # Should be ~0
-d_center <- function(x, dim = c("rows", "cols"), na.rm = FALSE) {
+d_center <- function(x, dim = c("rows", "cols"), axis = NULL, na.rm = FALSE) {
   stopifnot(inherits(x, "delarr"))
-  dim <- match.arg(dim)
-  add_op(x, list(op = "center", dim = dim, na_rm = isTRUE(na.rm)))
+  op <- list(op = "center", na_rm = isTRUE(na.rm))
+  if (!is.null(axis)) {
+    op$axis <- normalize_axes(axis, length(x$seed$dims))[[1L]]
+  } else {
+    op$dim <- match.arg(dim)
+  }
+  add_op(x, op)
 }
 
 #' Scale a delayed matrix along rows or columns
 #'
 #' @param x A `delarr`.
 #' @param dim Dimension to scale.
+#' @param axis Integer axis for N-d arrays (alternative to `dim`).
 #' @param center Logical; subtract the mean before scaling.
 #' @param scale Logical; divide by the standard deviation.
 #' @param na.rm Logical; remove missing values when computing statistics.
@@ -132,17 +152,17 @@ d_center <- function(x, dim = c("rows", "cols"), na.rm = FALSE) {
 #' # Scale without centering
 #' scaled_only <- darr |> d_scale(dim = "rows", center = FALSE) |> collect()
 #' scaled_only
-d_scale <- function(x, dim = c("rows", "cols"), center = TRUE, scale = TRUE,
-                    na.rm = FALSE) {
+d_scale <- function(x, dim = c("rows", "cols"), axis = NULL, center = TRUE,
+                    scale = TRUE, na.rm = FALSE) {
   stopifnot(inherits(x, "delarr"))
-  dim <- match.arg(dim)
-  add_op(x, list(
-    op = "scale",
-    dim = dim,
-    center = center,
-    scale = scale,
-    na_rm = isTRUE(na.rm)
-  ))
+  op <- list(op = "scale", center = center, scale = scale,
+             na_rm = isTRUE(na.rm))
+  if (!is.null(axis)) {
+    op$axis <- normalize_axes(axis, length(x$seed$dims))[[1L]]
+  } else {
+    op$dim <- match.arg(dim)
+  }
+  add_op(x, op)
 }
 
 #' Z-score a delayed matrix
@@ -151,6 +171,7 @@ d_scale <- function(x, dim = c("rows", "cols"), center = TRUE, scale = TRUE,
 #'
 #' @param x A `delarr`.
 #' @param dim Dimension over which to compute the z-score.
+#' @param axis Integer axis for N-d arrays (alternative to `dim`).
 #' @param na.rm Logical; remove missing values when computing statistics.
 #'
 #' @return A `delarr` with the z-score applied lazily.
@@ -165,10 +186,15 @@ d_scale <- function(x, dim = c("rows", "cols"), center = TRUE, scale = TRUE,
 #'
 #' # Row means should be ~0, row SDs should be ~1
 #' rowMeans(zscored)
-d_zscore <- function(x, dim = c("rows", "cols"), na.rm = FALSE) {
+d_zscore <- function(x, dim = c("rows", "cols"), axis = NULL, na.rm = FALSE) {
   stopifnot(inherits(x, "delarr"))
-  dim <- match.arg(dim)
-  add_op(x, list(op = "zscore", dim = dim, na_rm = isTRUE(na.rm)))
+  op <- list(op = "zscore", na_rm = isTRUE(na.rm))
+  if (!is.null(axis)) {
+    op$axis <- normalize_axes(axis, length(x$seed$dims))[[1L]]
+  } else {
+    op$dim <- match.arg(dim)
+  }
+  add_op(x, op)
 }
 
 #' Detrend a delayed matrix
@@ -178,6 +204,7 @@ d_zscore <- function(x, dim = c("rows", "cols"), na.rm = FALSE) {
 #'
 #' @param x A `delarr`.
 #' @param dim Dimension along which to fit the trend.
+#' @param axis Integer axis for N-d arrays (alternative to `dim`).
 #' @param degree Polynomial degree (default 1).
 #'
 #' @return A `delarr` with the detrend operation queued.
@@ -194,10 +221,15 @@ d_zscore <- function(x, dim = c("rows", "cols"), na.rm = FALSE) {
 #' # Remove quadratic trend
 #' quad_detrend <- darr |> d_detrend(dim = "rows", degree = 2L) |> collect()
 #' quad_detrend
-d_detrend <- function(x, dim = c("rows", "cols"), degree = 1L) {
+d_detrend <- function(x, dim = c("rows", "cols"), axis = NULL, degree = 1L) {
   stopifnot(inherits(x, "delarr"))
-  dim <- match.arg(dim)
-  add_op(x, list(op = "detrend", dim = dim, degree = as.integer(degree)))
+  op <- list(op = "detrend", degree = as.integer(degree))
+  if (!is.null(axis)) {
+    op$axis <- normalize_axes(axis, length(x$seed$dims))[[1L]]
+  } else {
+    op$dim <- match.arg(dim)
+  }
+  add_op(x, op)
 }
 
 #' Apply a boolean mask to a delayed matrix

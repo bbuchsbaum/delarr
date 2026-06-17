@@ -15,6 +15,7 @@ knitr::opts_chunk$set(
   warning = FALSE
 )
 has_shard <- requireNamespace("shard", quietly = TRUE)
+has_hdf5 <- requireNamespace("hdf5r", quietly = TRUE)
 ```
 
 ```{r load-delarr}
@@ -53,7 +54,9 @@ pipe <- delarr(mat)[, -1] |>
 
 plan <- explain(pipe, chunk_size = 3L)
 plan
+```
 
+```{r check-plan, include = FALSE}
 stopifnot(
   identical(plan$output_dim, dim(pipe)),
   identical(plan$chunk_margin, "cols"),
@@ -71,10 +74,15 @@ adaptive_plan <- explain(pipe, target_bytes = 256)
 adaptive_plan
 
 adaptive_result <- collect(pipe, target_bytes = 256)
-fixed_result <- collect(pipe, chunk_size = 3L)
-
-stopifnot(isTRUE(all.equal(adaptive_result, fixed_result)))
 dim(adaptive_result)
+```
+
+```{r check-adaptive-collect, include = FALSE}
+fixed_result <- collect(pipe, chunk_size = 3L)
+stopifnot(
+  all(is.finite(adaptive_result)),
+  isTRUE(all.equal(adaptive_result, fixed_result))
+)
 ```
 
 ## How do you compute several summaries in one pass?
@@ -90,14 +98,16 @@ row_summary <- d_reduce_many(
   chunk_size = 3L
 )
 
+row_summary[1:4, , drop = FALSE]
+```
+
+```{r check-multi-reduce, include = FALSE}
 stopifnot(
   is.matrix(row_summary),
   isTRUE(all.equal(row_summary[, "sum"], rowSums(mat))),
   isTRUE(all.equal(row_summary[, "mean"], rowMeans(mat))),
   isTRUE(all.equal(row_summary[, "max"], apply(mat, 1L, max)))
 )
-
-row_summary[1:4, , drop = FALSE]
 ```
 
 ## How do you work block-by-block?
@@ -114,9 +124,14 @@ col_blocks <- block_apply(
 )
 
 block_means <- unlist(col_blocks, use.names = FALSE)
-stopifnot(isTRUE(all.equal(block_means, unname(colMeans(mat)))))
-
 block_means
+```
+
+```{r check-block-apply, include = FALSE}
+stopifnot(
+  all(is.finite(block_means)),
+  isTRUE(all.equal(block_means, unname(colMeans(mat))))
+)
 ```
 
 ## How do delayed matrix products fit into a pipeline?
@@ -129,35 +144,55 @@ rhs <- matrix(rnorm(30), nrow = 6, ncol = 5)
 product_block <- d_matmul(delarr(mat[, 1:6, drop = FALSE]), delarr(rhs))[1:4, 1:3] |>
   collect(chunk_size = 2L)
 
-expected_block <- (mat[, 1:6, drop = FALSE] %*% rhs)[1:4, 1:3, drop = FALSE]
-stopifnot(isTRUE(all.equal(product_block, expected_block)))
-
 product_block
+```
+
+```{r check-delayed-matmul, include = FALSE}
+expected_block <- (mat[, 1:6, drop = FALSE] %*% rhs)[1:4, 1:3, drop = FALSE]
+stopifnot(
+  all(is.finite(product_block)),
+  isTRUE(all.equal(product_block, expected_block))
+)
 ```
 
 ## How do you stream a transformed matrix to disk?
 
 The writer interface is useful when the result is still large enough that you
-do not want to hold it in memory.
+do not want to hold it in memory. The HDF5 backend is optional; the chunks below
+run only when the `hdf5r` package is installed.
 
-```{r stream-scaled-hdf5}
+```{r prepare-scaled-hdf5, include = FALSE, eval = has_hdf5}
 tf_in <- tempfile(fileext = ".h5")
 tf_out <- tempfile(fileext = ".h5")
 
 write_hdf5(mat, tf_in, "X")
+```
 
+```{r stream-scaled-hdf5, eval = has_hdf5}
 X <- delarr_hdf5(tf_in, "X")
 scaled <- X |> d_scale(dim = "cols", center = TRUE, scale = TRUE)
 writer <- hdf5_writer(tf_out, "X_scaled", ncol = ncol(X), chunk = c(6L, 4L))
 
 collect(scaled, into = writer, chunk_size = 4L)
+```
 
+```{r inspect-scaled-hdf5, eval = has_hdf5}
 disk_result <- read_hdf5(tf_out, "X_scaled")
-reference <- collect(delarr(mat) |> d_scale(dim = "cols", center = TRUE, scale = TRUE), chunk_size = 4L)
+rbind(
+  mean = round(colMeans(disk_result), 6),
+  sd = round(apply(disk_result, 2L, stats::sd), 6)
+)
+```
 
-stopifnot(isTRUE(all.equal(unname(disk_result), unname(reference), tolerance = 1e-8)))
-round(colMeans(disk_result), 6)
-
+```{r check-scaled-hdf5, include = FALSE, eval = has_hdf5}
+centered <- sweep(mat, 2L, colMeans(mat), "-")
+reference <- sweep(centered, 2L, apply(mat, 2L, stats::sd), "/")
+stopifnot(
+  all(is.finite(disk_result)),
+  isTRUE(all.equal(unname(disk_result), unname(reference), tolerance = 1e-8)),
+  all(abs(colMeans(disk_result)) < 1e-8),
+  all(abs(apply(disk_result, 2L, stats::sd) - 1) < 1e-8)
+)
 unlink(c(tf_in, tf_out))
 ```
 
@@ -173,8 +208,14 @@ shard_result <- delarr_shard(mat) |>
   d_reduce(sum, dim = "rows") |>
   collect_shard(workers = 2L, chunk_size = 3L)
 
-stopifnot(isTRUE(all.equal(shard_result, rowSums(mat * 2))))
 head(shard_result)
+```
+
+```{r check-shard-collect, include = FALSE, eval = has_shard}
+stopifnot(
+  all(is.finite(shard_result)),
+  isTRUE(all.equal(shard_result, rowSums(mat * 2)))
+)
 ```
 
 ## How do you profile a candidate pipeline?
@@ -185,7 +226,9 @@ of the realized output.
 ```{r profile-pipeline}
 profile <- profile_collect(pipe, reps = 2L, chunk_size = 3L)
 profile
+```
 
+```{r check-profile-pipeline, include = FALSE}
 stopifnot(
   identical(profile$reps, 2L),
   all(is.finite(profile$elapsed)),
@@ -196,6 +239,6 @@ stopifnot(
 ## Where should you go after this?
 
 Return to `vignette("delarr-getting-started", package = "delarr")` for the core
-lazy workflow, then use `?explain`, `?block_apply`, `?d_reduce_many`, and
-`?collect_shard` as you tune real pipelines for storage layout, chunking, and
+lazy workflow, then use `explain()`, `block_apply()`, `d_reduce_many()`, and
+`collect_shard()` as you tune real pipelines for storage layout, chunking, and
 execution strategy.

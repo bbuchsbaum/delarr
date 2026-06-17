@@ -74,6 +74,7 @@ test_that("delarr_backend with dimnames", {
 })
 
 test_that("delarr_hdf5 reads data correctly", {
+  skip_if_not_installed("hdf5r")
   tf <- tempfile(fileext = ".h5")
   on.exit(unlink(tf), add = TRUE)
   data <- matrix(as.double(1:20), 4, 5)
@@ -88,6 +89,7 @@ test_that("delarr_hdf5 reads data correctly", {
 })
 
 test_that("delarr_hdf5 supports lazy pipeline", {
+  skip_if_not_installed("hdf5r")
   tf <- tempfile(fileext = ".h5")
   on.exit(unlink(tf), add = TRUE)
   data <- matrix(as.double(1:20), 4, 5)
@@ -101,6 +103,7 @@ test_that("delarr_hdf5 supports lazy pipeline", {
 })
 
 test_that("delarr_hdf5 chunked streaming works", {
+  skip_if_not_installed("hdf5r")
   tf <- tempfile(fileext = ".h5")
   on.exit(unlink(tf), add = TRUE)
   data <- matrix(as.double(1:30), 5, 6)
@@ -114,6 +117,7 @@ test_that("delarr_hdf5 chunked streaming works", {
 })
 
 test_that("delarr_hdf5 reads 3D datasets correctly", {
+  skip_if_not_installed("hdf5r")
   tf <- tempfile(fileext = ".h5")
   on.exit(unlink(tf), add = TRUE)
   data <- array(as.double(1:60), dim = c(3, 4, 5))
@@ -127,6 +131,7 @@ test_that("delarr_hdf5 reads 3D datasets correctly", {
 })
 
 test_that("delarr_hdf5 supports 3D lazy pipelines", {
+  skip_if_not_installed("hdf5r")
   tf <- tempfile(fileext = ".h5")
   on.exit(unlink(tf), add = TRUE)
   data <- array(as.double(1:60), dim = c(3, 4, 5))
@@ -139,7 +144,40 @@ test_that("delarr_hdf5 supports 3D lazy pipelines", {
   expect_equal(result, apply(data * 2, 1, mean))
 })
 
+test_that("delarr_hdf5 rejects scalar datasets", {
+  skip_if_not_installed("hdf5r")
+  tf <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf), add = TRUE)
+  f <- hdf5r::H5File$new(tf, mode = "w")
+  f$create_dataset("scalar", robj = 1)
+  f$close_all()
+
+  expect_error(delarr_hdf5(tf, "scalar"), "at least 2 dimensions")
+})
+
+test_that("delarr_hdf5 pull functions work before collect opens the file", {
+  skip_if_not_installed("hdf5r")
+  tf <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf), add = TRUE)
+  mat <- matrix(as.double(1:20), 4, 5)
+  arr <- array(as.double(1:24), dim = c(2, 3, 4))
+  f <- hdf5r::H5File$new(tf, mode = "w")
+  f$create_dataset("mat", robj = mat)
+  f$create_dataset("arr", robj = arr)
+  f$close_all()
+
+  mat_darr <- delarr_hdf5(tf, "mat")
+  expect_equal(mat_darr$seed$pull(rows = 2:3, cols = 1:2), mat[2:3, 1:2])
+
+  arr_darr <- delarr_hdf5(tf, "arr")
+  expect_equal(
+    arr_darr$seed$pull_nd(list(1:2, 2:3, 1:2)),
+    arr[1:2, 2:3, 1:2, drop = FALSE]
+  )
+})
+
 test_that("delarr_mmap reads binary data correctly", {
+  skip_if_not_installed("mmap")
   mat <- matrix(as.double(1:20), 4, 5)
   tf <- tempfile()
   on.exit(unlink(tf), add = TRUE)
@@ -152,6 +190,7 @@ test_that("delarr_mmap reads binary data correctly", {
 })
 
 test_that("delarr_mmap supports lazy operations", {
+  skip_if_not_installed("mmap")
   mat <- matrix(as.double(1:20), 4, 5)
   tf <- tempfile()
   on.exit(unlink(tf), add = TRUE)
@@ -163,11 +202,13 @@ test_that("delarr_mmap supports lazy operations", {
 })
 
 test_that("delarr_mmap validates missing file", {
+  skip_if_not_installed("mmap")
   expect_error(delarr_mmap("/nonexistent/file.bin", nrow = 2, ncol = 3),
                "File not found")
 })
 
 test_that("delarr_mmap validates bad dimensions", {
+  skip_if_not_installed("mmap")
   tf <- tempfile()
   on.exit(unlink(tf), add = TRUE)
   writeBin(as.double(1:10), tf)
@@ -176,6 +217,7 @@ test_that("delarr_mmap validates bad dimensions", {
 })
 
 test_that("delarr_mmap validates file too small", {
+  skip_if_not_installed("mmap")
   tf <- tempfile()
   on.exit(unlink(tf), add = TRUE)
   writeBin(as.double(1:4), tf)
@@ -184,6 +226,7 @@ test_that("delarr_mmap validates file too small", {
 })
 
 test_that("delarr_mmap slicing works", {
+  skip_if_not_installed("mmap")
   mat <- matrix(as.double(1:20), 4, 5)
   tf <- tempfile()
   on.exit(unlink(tf), add = TRUE)

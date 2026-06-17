@@ -284,6 +284,63 @@ test_that("broadcasting preserves non-commutative semantics for row and column v
   )
 })
 
+test_that("square-matrix bare vector broadcast is row-aligned and warns once", {
+  sq <- matrix(as.double(1:9), 3, 3)
+  v <- c(10, 20, 30)
+  x <- delarr(sq)
+
+  # The warning is emitted at construction (the `+`), not at collect().
+  expect_warning(x + v, "Ambiguous broadcast")
+
+  result <- collect(suppressWarnings(x + v), chunk_size = 2L)
+  expect_equal(result, sweep(sq, 1L, v, "+"))
+  expect_false(isTRUE(all.equal(result, sweep(sq, 2L, v, "+"))))
+})
+
+test_that("square-matrix left-hand vector broadcast is row-aligned and warns", {
+  sq <- matrix(as.double(1:9), 3, 3)
+  v <- c(10, 20, 30)
+
+  expect_warning(v - delarr(sq), "Ambiguous broadcast")
+  result <- collect(suppressWarnings(v - delarr(sq)), chunk_size = 2L)
+  expect_equal(result, matrix(v, 3, 3) - sq)
+})
+
+test_that("square-matrix column alignment via explicit matrix works without warning", {
+  sq <- matrix(as.double(1:9), 3, 3)
+  v <- c(10, 20, 30)
+  rhs <- matrix(v, 3, 3, byrow = TRUE)
+
+  expect_warning(delarr(sq) + rhs, NA)
+  expect_equal(collect(delarr(sq) + rhs), sweep(sq, 2L, v, "+"))
+})
+
+test_that("d_map2 warns on ambiguous square broadcast and stays row-aligned", {
+  sq <- matrix(as.double(1:9), 3, 3)
+  v <- c(10, 20, 30)
+
+  expect_warning(d_map2(delarr(sq), v, ~ .x + .y), "Ambiguous broadcast")
+  result <- collect(suppressWarnings(d_map2(delarr(sq), v, ~ .x + .y)))
+  expect_equal(result, sweep(sq, 1L, v, "+"))
+})
+
+test_that("ambiguous square-broadcast warning is scoped and silenceable", {
+  sq <- matrix(as.double(1:9), 3, 3)
+  rect <- matrix(as.double(1:12), 3, 4)
+
+  # Scalars on a square matrix are unambiguous: no warning.
+  expect_warning(delarr(sq) + 5, NA)
+
+  # Non-square matrices are unambiguous for either orientation: no warning.
+  expect_warning(delarr(rect) + 1:3, NA)
+  expect_warning(delarr(rect) + 1:4, NA)
+
+  # The warning can be turned off via option.
+  old <- options(delarr.warn_ambiguous_broadcast = FALSE)
+  on.exit(options(old), add = TRUE)
+  expect_warning(delarr(sq) + c(10, 20, 30), NA)
+})
+
 test_that("broadcasting rejects matrix of wrong dimensions", {
   mat <- matrix(1:12, 3, 4)
   x <- delarr(mat)

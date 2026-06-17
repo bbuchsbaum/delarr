@@ -260,6 +260,85 @@ test_that("built-in N-d reductions stream by chunk along reduced axes", {
   expect_equal(pulls, 3L)
 })
 
+test_that("N-d min and max reductions handle all-NA slices across chunks", {
+  arr <- array(as.double(seq_len(2 * 3 * 4)), dim = c(2, 3, 4))
+  arr[1, 2, ] <- NA_real_
+  darr <- delarr(arr)
+
+  min_result <- collect(
+    d_reduce(darr, min, axis = 3L, na.rm = TRUE),
+    chunk_size = 2L,
+    chunk_margin = 3L
+  )
+  max_result <- collect(
+    d_reduce(darr, max, axis = 3L, na.rm = TRUE),
+    chunk_size = 2L,
+    chunk_margin = 3L
+  )
+
+  expected_min <- apply(arr, c(1, 2), function(x) {
+    if (all(is.na(x))) NA_real_ else min(x, na.rm = TRUE)
+  })
+  expected_max <- apply(arr, c(1, 2), function(x) {
+    if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE)
+  })
+
+  expect_equal(min_result, expected_min)
+  expect_equal(max_result, expected_max)
+})
+
+test_that("N-d generic reductions fall back to full evaluation", {
+  arr <- array(as.double(c(1:23, NA)), dim = c(2, 3, 4))
+  darr <- delarr(arr)
+
+  expect_equal(
+    collect(d_reduce(darr, stats::median, axis = c(1L, 2L, 3L))),
+    stats::median(as.vector(arr))
+  )
+
+  trimmed_mean <- function(x, na.rm = FALSE) mean(x, trim = 0.25, na.rm = na.rm)
+  expect_equal(
+    collect(d_reduce(darr, trimmed_mean, axis = c(1L, 2L, 3L), na.rm = TRUE)),
+    trimmed_mean(as.vector(arr), na.rm = TRUE)
+  )
+})
+
+test_that("N-d collect can stream chunks into a callback", {
+  arr <- array(seq_len(2 * 3 * 4), dim = c(2, 3, 4))
+  chunks <- list()
+
+  result <- collect(
+    delarr(arr) |> d_map(~ .x * 2),
+    into = function(block, indices, axis, positions) {
+      chunks[[length(chunks) + 1L]] <<- list(
+        block = block,
+        indices = indices,
+        axis = axis,
+        positions = positions
+      )
+    },
+    chunk_size = 2L,
+    chunk_margin = 3L
+  )
+
+  expect_null(result)
+  expect_equal(length(chunks), 2L)
+  expect_equal(chunks[[1L]]$axis, 3L)
+  expect_equal(chunks[[1L]]$positions, 1:2)
+  expect_equal(chunks[[1L]]$block, arr[, , 1:2, drop = FALSE] * 2)
+  expect_equal(chunks[[2L]]$block, arr[, , 3:4, drop = FALSE] * 2)
+})
+
+test_that("N-d collect rejects writer-style into targets", {
+  arr <- array(seq_len(2 * 3 * 4), dim = c(2, 3, 4))
+  writer <- list(write = function(...) NULL)
+
+  expect_error(
+    collect(delarr(arr), into = writer, chunk_size = 2L, chunk_margin = 3L),
+    "Writer-style into targets"
+  )
+})
+
 # ---- axis-based verb tests ----------------------------------------------------
 
 test_that("d_reduce with axis= on 3D array", {

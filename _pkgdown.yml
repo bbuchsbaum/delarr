@@ -13,6 +13,7 @@ reference:
     contents:
       - delarr
       - delarr_seed
+      - delarr_seed_nd
       - collect
       - block_apply
 
@@ -25,6 +26,7 @@ reference:
 
   - title: Verbs
     contents:
+      - d_aperm
       - d_map
       - d_map2
       - d_reduce
@@ -47,6 +49,12 @@ reference:
       - write_hdf5
       - read_hdf5
       - hdf5_writer
+
+  - title: Shared-memory
+    contents:
+      - delarr_shard
+      - collect_shard
+      - shard_writer
 
   - title: Utilities
     contents:

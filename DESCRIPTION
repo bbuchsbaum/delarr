@@ -1,7 +1,7 @@
 Package: delarr
 Type: Package
 Title: Lazy Delayed Arrays with Fused Execution
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R: 
     person(given = "Bradley", family = "Buchsbaum", role = c("aut", "cre"),
            email = "brad.buchsbaum@gmail.com")
@@ -12,17 +12,15 @@ BugReports: https://github.com/bbuchsbaum/delarr/issues
 License: MIT + file LICENSE
 Depends: R (>= 4.1)
 Imports:
-    rlang,
-    hdf5r,
-    mmap
+    rlang
 Suggests:
+    hdf5r,
+    mmap,
     matrixStats,
     shard,
     testthat (>= 3.1.0),
     knitr,
     rmarkdown
-Remotes:
-    bbuchsbaum/shard
 VignetteBuilder: knitr
 Encoding: UTF-8
 LazyData: false

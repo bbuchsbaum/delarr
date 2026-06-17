@@ -1,4 +1,5 @@
-utils::globalVariables(c(".cols", ".rows", ".ops", ".type", ".na_rm", ".apply_ops"))
+utils::globalVariables(c(".cols", ".rows", ".ops", ".type", ".na_rm", ".apply_ops",
+                        ".n_rows", ".n_cols"))
 
 # ---- Dependency guard --------------------------------------------------------
 
@@ -23,13 +24,14 @@ shard_buffer_type <- function(x) {
 
 # ---- delarr_shard: shared-memory backend ------------------------------------
 
-#' Create a delayed matrix backed by shared memory
+#' Create a delayed array backed by shared memory
 #'
-#' Wraps a numeric matrix into shard's shared memory, returning a `delarr`.
+#' Wraps a numeric matrix or array into shard's shared memory, returning a
+#' `delarr`.
 #' The shared ALTREP vector is stored on the seed so that `collect_shard()`
 #' can reuse it without re-sharing (zero-copy).
 #'
-#' @param x A numeric matrix.
+#' @param x A numeric matrix or array.
 #' @param backing Backing type passed to `shard::share()`.
 #'
 #' @return A `delarr` backed by shared memory.
@@ -42,21 +44,35 @@ shard_buffer_type <- function(x) {
 #' }
 delarr_shard <- function(x, backing = "auto") {
   check_shard_available()
-  if (!is.matrix(x) || !is.numeric(x)) {
-    stop("x must be a numeric matrix", call. = FALSE)
+  dims <- dim(x)
+  if (is.null(dims) || length(dims) < 2L || !is.numeric(x)) {
+    stop("x must be a numeric matrix or array", call. = FALSE)
   }
   shared <- shard::share(x, backing = backing, min_bytes = 0, readonly = TRUE)
-  seed <- delarr_seed(
-    nrow = nrow(x),
-    ncol = ncol(x),
-    pull = function(rows = NULL, cols = NULL) {
-      rows <- rows %||% seq_len(nrow(x))
-      cols <- cols %||% seq_len(ncol(x))
-      shared[rows, cols, drop = FALSE]
-    },
-    chunk_hint = list(cols = 4096L),
-    dimnames = dimnames(x)
-  )
+  seed <- if (length(dims) == 2L) {
+    delarr_seed(
+      nrow = dims[[1L]],
+      ncol = dims[[2L]],
+      pull = function(rows = NULL, cols = NULL) {
+        rows <- rows %||% seq_len(dims[[1L]])
+        cols <- cols %||% seq_len(dims[[2L]])
+        shared[rows, cols, drop = FALSE]
+      },
+      chunk_hint = list(cols = 4096L),
+      dimnames = dimnames(x)
+    )
+  } else {
+    delarr_seed_nd(
+      dims = dims,
+      pull = function(indices) {
+        idx <- lapply(seq_along(dims), function(k) {
+          indices[[k]] %||% seq_len(dims[[k]])
+        })
+        do.call(`[`, c(list(shared), idx, list(drop = FALSE)))
+      },
+      dimnames = dimnames(x)
+    )
+  }
   seed$shared <- shared
   class(seed) <- c("delarr_shard_seed", class(seed))
   new_delarr(seed = seed, ops = list())
@@ -72,6 +88,9 @@ delarr_shard <- function(x, backing = "auto") {
 #'
 #' @param nrow,ncol Dimensions of the output matrix.
 #' @param backing Backing type passed to `shard::buffer()`.
+#'
+#' @note This writer supports 2D matrices only. N-d array collection does not
+#'   currently support writer-style `into` targets.
 #'
 #' @return A writer list with `$write()`, `$finalize()`, `$result()`, and
 #'   `$close()` methods.
@@ -154,6 +173,15 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
 
   seed <- x$seed
   plan <- compile_plan(x)
+  if (is_nd_seed(seed)) {
+    return(collect(
+      x,
+      chunk_size = chunk_size,
+      parallel = TRUE,
+      workers = workers,
+      optimize = FALSE
+    ))
+  }
   rows <- plan$rows %||% seq_len(seed$nrow)
   cols <- plan$cols %||% seq_len(seed$ncol)
   n_rows <- length(rows)
@@ -236,6 +264,8 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
     env$subset_rhs_for_chunk <- rehome(subset_rhs_for_chunk)
     env$safe_mean <- rehome(safe_mean)
     env$safe_sd <- rehome(safe_sd)
+    env$safe_min <- rehome(safe_min)
+    env$safe_max <- rehome(safe_max)
     env$safe_center <- rehome(safe_center)
     env$safe_scale_matrix <- rehome(safe_scale_matrix)
     env$detrend_matrix <- rehome(detrend_matrix)
@@ -343,8 +373,8 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
       partial <- switch(.type,
         sum  = rowSums(block, na.rm = .na_rm),
         mean = rowSums(block, na.rm = .na_rm),
-        min  = apply(block, 1L, min, na.rm = .na_rm),
-        max  = apply(block, 1L, max, na.rm = .na_rm)
+        min  = safe_min(block, "rows", na.rm = .na_rm),
+        max  = safe_max(block, "rows", na.rm = .na_rm)
       )
       counts <- if (.na_rm || identical(.type, "mean")) {
         rowSums(!is.na(block))
@@ -403,8 +433,8 @@ collect_shard <- function(x, workers = NULL, chunk_size = NULL,
     partial <- switch(.type,
       sum  = colSums(block, na.rm = .na_rm),
       mean = colSums(block, na.rm = .na_rm),
-      min  = apply(block, 2L, min, na.rm = .na_rm),
-      max  = apply(block, 2L, max, na.rm = .na_rm)
+      min  = safe_min(block, "cols", na.rm = .na_rm),
+      max  = safe_max(block, "cols", na.rm = .na_rm)
     )
     counts <- if (.na_rm || identical(.type, "mean")) {
       colSums(!is.na(block))

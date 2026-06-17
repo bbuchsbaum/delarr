@@ -37,6 +37,18 @@ test_that("d_matmul works with sliced delarrs", {
   expect_equal(result, A[1:2, ] %*% B)
 })
 
+test_that("d_matmul handles empty output slices", {
+  A <- matrix(rnorm(20), 4, 5)
+  B <- matrix(rnorm(15), 5, 3)
+  product <- d_matmul(delarr(A), delarr(B))
+
+  empty_rows <- collect(product[integer(), ])
+  expect_equal(dim(empty_rows), c(0L, 3L))
+
+  empty_cols <- collect(product[, integer()])
+  expect_equal(dim(empty_cols), c(4L, 0L))
+})
+
 # ---- d_reduce_many -----------------------------------------------------------
 
 test_that("d_reduce_many computes multiple reductions in one pass", {
@@ -96,6 +108,52 @@ test_that("d_reduce_many with generic function falls back correctly", {
   expect_equal(result[, "med"], apply(mat, 1, median))
 })
 
+test_that("d_reduce_many falls back when all reducers are generic", {
+  mat <- matrix(as.double(1:15), 3, 5)
+  darr <- delarr(mat)
+  result <- d_reduce_many(darr, list(med = median, iqr = IQR), dim = "rows")
+
+  expect_equal(result[, "med"], apply(mat, 1L, median))
+  expect_equal(result[, "iqr"], apply(mat, 1L, IQR))
+})
+
+test_that("d_reduce_many streams paired delarr rhs operations", {
+  lhs <- matrix(as.double(1:20), 4, 5)
+  rhs <- matrix(as.double(21:40), 4, 5)
+  pipeline <- d_map2(delarr(lhs), delarr(rhs), ~ .x + .y)
+
+  result <- d_reduce_many(
+    pipeline,
+    fns = list(sum = sum, mean = mean),
+    dim = "rows",
+    chunk_size = 2L
+  )
+
+  expected <- lhs + rhs
+  expect_equal(result[, "sum"], rowSums(expected))
+  expect_equal(result[, "mean"], rowMeans(expected))
+})
+
+test_that("d_reduce_many handles column extrema with all-NA chunks", {
+  mat <- matrix(
+    c(NA, NA, NA, NA,
+      1, NA, 7, 8,
+      5, 6, NA, 12),
+    nrow = 4,
+    ncol = 3
+  )
+  result <- d_reduce_many(
+    delarr(mat),
+    fns = list(min = min, max = max),
+    dim = "cols",
+    na.rm = TRUE,
+    chunk_size = 1L
+  )
+
+  expect_equal(result[, "min"], c(NA_real_, 1, 5))
+  expect_equal(result[, "max"], c(NA_real_, 8, 12))
+})
+
 test_that("d_reduce_many simplify=FALSE returns list", {
   mat <- matrix(1:12, 3, 4)
   darr <- delarr(mat)
@@ -125,6 +183,33 @@ test_that("d_aperm with identity permutation returns unchanged", {
   darr <- delarr(arr)
   result <- d_aperm(darr, c(1L, 2L, 3L))
   expect_identical(result, darr)
+})
+
+test_that("d_aperm preserves 2D chunk hints and dimnames", {
+  mat <- matrix(
+    as.double(1:12),
+    nrow = 3,
+    ncol = 4,
+    dimnames = list(paste0("r", 1:3), paste0("c", 1:4))
+  )
+  seed <- delarr_seed(
+    nrow = nrow(mat),
+    ncol = ncol(mat),
+    pull = function(rows = NULL, cols = NULL) {
+      rows <- rows %||% seq_len(nrow(mat))
+      cols <- cols %||% seq_len(ncol(mat))
+      mat[rows, cols, drop = FALSE]
+    },
+    chunk_hint = list(rows = 2L, cols = 3L),
+    dimnames = dimnames(mat)
+  )
+
+  result <- d_aperm(delarr(seed), c(2L, 1L))
+
+  expect_equal(collect(result, chunk_size = 2L), t(mat))
+  expect_equal(dimnames(result), rev(dimnames(mat)))
+  expect_equal(result$seed$chunk_hint$rows, 3L)
+  expect_equal(result$seed$chunk_hint$cols, 2L)
 })
 
 test_that("d_aperm on 4D array works correctly", {

@@ -46,9 +46,10 @@ delarr_backend <- function(nrow, ncol, pull, chunk_hint = NULL, dimnames = NULL,
 
 #' Create a delayed matrix from an in-memory matrix
 #'
-#' @param x A numeric or logical matrix.
+#' @param x A numeric or logical matrix, or an array with at least 2
+#'   dimensions.
 #'
-#' @return A `delarr` referencing the original matrix.
+#' @return A `delarr` referencing the original object.
 #' @export
 #' @examples
 #' # Wrap an in-memory matrix
@@ -60,13 +61,13 @@ delarr_backend <- function(nrow, ncol, pull, chunk_hint = NULL, dimnames = NULL,
 #' result <- darr |> d_center(dim = "rows") |> collect()
 #' result
 delarr_mem <- function(x) {
-  if (!is.matrix(x)) {
-    stop("x must be a matrix", call. = FALSE)
+  if (!is.matrix(x) && !(is.array(x) && length(dim(x)) >= 2L)) {
+    stop("x must be a matrix or array with at least 2 dimensions", call. = FALSE)
   }
   delarr(x)
 }
 
-#' Create a delayed matrix sourced from an HDF5 dataset
+#' Create a delayed array sourced from an HDF5 dataset
 #'
 #' Uses `hdf5r` to lazily read slices from disk on demand.
 #'
@@ -96,11 +97,15 @@ delarr_mem <- function(x) {
 #' # Clean up
 #' unlink(tf)
 delarr_hdf5 <- function(path, dataset) {
+  .require_hdf5r()
   file <- hdf5r::H5File$new(path, mode = "r")
   on.exit(file$close_all())
   dset <- file[[dataset]]
-  dims <- dset$dims
+  dims <- as.integer(dset$dims)
   chunk_dims <- tryCatch(dset$chunk_dims, error = function(e) NULL)
+  if (length(dims) < 2L) {
+    stop("delarr_hdf5() requires a dataset with at least 2 dimensions", call. = FALSE)
+  }
 
   state <- new.env(parent = emptyenv())
   state$file <- NULL
@@ -124,31 +129,57 @@ delarr_hdf5 <- function(path, dataset) {
     invisible(NULL)
   }
 
-  pull <- function(rows = NULL, cols = NULL) {
-    rows <- rows %||% seq_len(dims[1])
-    cols <- cols %||% seq_len(dims[2])
+  chunk_hint <- NULL
+  if (!is.null(chunk_dims) && length(chunk_dims) >= 1L) {
+    chunk_dims <- as.integer(chunk_dims)
+    chunk_hint <- stats::setNames(as.list(chunk_dims), paste0("axis", seq_along(chunk_dims)))
+    if (length(chunk_dims) >= 1L) chunk_hint$rows <- chunk_dims[[1L]]
+    if (length(chunk_dims) >= 2L) chunk_hint$cols <- chunk_dims[[2L]]
+  }
+
+  if (length(dims) == 2L) {
+    pull <- function(rows = NULL, cols = NULL) {
+      rows <- rows %||% seq_len(dims[1L])
+      cols <- cols %||% seq_len(dims[2L])
+      if (!is.null(state$dset)) {
+        return(state$dset[rows, cols, drop = FALSE])
+      }
+      file <- hdf5r::H5File$new(path, mode = "r")
+      on.exit(file$close_all())
+      dset <- file[[dataset]]
+      dset[rows, cols, drop = FALSE]
+    }
+
+    return(delarr_backend(
+      nrow = dims[1L],
+      ncol = dims[2L],
+      pull = pull,
+      chunk_hint = chunk_hint,
+      begin = begin,
+      end = end
+    ))
+  }
+
+  pull_nd <- function(indices) {
+    idx <- lapply(seq_along(dims), function(k) {
+      indices[[k]] %||% seq_len(dims[[k]])
+    })
     if (!is.null(state$dset)) {
-      return(state$dset[rows, cols, drop = FALSE])
+      return(do.call(`[`, c(list(state$dset), idx, list(drop = FALSE))))
     }
     file <- hdf5r::H5File$new(path, mode = "r")
     on.exit(file$close_all())
     dset <- file[[dataset]]
-    dset[rows, cols, drop = FALSE]
+    do.call(`[`, c(list(dset), idx, list(drop = FALSE)))
   }
 
-  chunk_hint <- NULL
-  if (!is.null(chunk_dims) && length(chunk_dims) >= 2L) {
-    chunk_hint <- list(cols = as.integer(chunk_dims[[2L]]))
-  }
-
-  delarr_backend(
-    nrow = dims[1],
-    ncol = dims[2],
-    pull = pull,
+  delarr(delarr_seed_nd(
+    dims = dims,
+    pull = pull_nd,
     chunk_hint = chunk_hint,
     begin = begin,
     end = end
-  )
+  ))
 }
 
 #' Create a delayed matrix from a memory-mapped file
@@ -160,6 +191,9 @@ delarr_hdf5 <- function(path, dataset) {
 #' @param nrow Number of rows in the matrix.
 #' @param ncol Number of columns in the matrix.
 #' @param mode mmap mode object specifying data type. Default is double().
+#'
+#' @note This backend supports 2D matrices only. For N-d arrays, use
+#'   [delarr_hdf5()] or wrap an in-memory array with [delarr()].
 #'
 #' @return A `delarr` that streams data from the memory-mapped file.
 #' @export
@@ -180,6 +214,13 @@ delarr_hdf5 <- function(path, dataset) {
 #' # Clean up
 #' unlink(tf)
 delarr_mmap <- function(path, nrow, ncol, mode = NULL) {
+  if (!requireNamespace("mmap", quietly = TRUE)) {
+    stop(
+      "Package 'mmap' is required for delarr_mmap(). ",
+      "Install it with install.packages(\"mmap\").",
+      call. = FALSE
+    )
+  }
   # Validate inputs
   if (!file.exists(path)) {
     stop("File not found: ", path, call. = FALSE)

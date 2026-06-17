@@ -14,6 +14,7 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE
 )
+has_hdf5 <- requireNamespace("hdf5r", quietly = TRUE)
 ```
 
 ```{r load-delarr}
@@ -55,12 +56,18 @@ is only a recorded plan.
 
 ```{r collect-lazy-pipeline}
 row_summary <- collect(lazy_mean, chunk_size = 2L)
-row_summary
-stopifnot(all(abs(row_summary) < 1e-10))
+max(abs(row_summary))
 ```
 
-After row-centering, every row has mean zero. The `stopifnot()` turns that
-claim into a check that would fail if the pipeline changed unexpectedly.
+After row-centering, every row has mean zero. The printed value is the largest
+absolute row mean after collection.
+
+```{r check-lazy-pipeline, include = FALSE}
+stopifnot(
+  all(is.finite(row_summary)),
+  all(abs(row_summary) < 1e-10)
+)
+```
 
 ## How do row and column vectors broadcast?
 
@@ -73,34 +80,76 @@ row_bias <- c(-1, 0, 1, 2, 3, 4)
 col_scale <- c(1, 0.5, 2, 1.5)
 
 broadcasted <- collect((delarr(mat) + row_bias) * col_scale, chunk_size = 2L)
-expected <- sweep(sweep(mat, 1L, row_bias, "+"), 2L, col_scale, "*")
-
-stopifnot(isTRUE(all.equal(broadcasted, expected)))
 broadcasted[1:3, , drop = FALSE]
 ```
+
+```{r check-broadcast-vectors, include = FALSE}
+expected <- sweep(sweep(mat, 1L, row_bias, "+"), 2L, col_scale, "*")
+stopifnot(isTRUE(all.equal(broadcasted, expected)))
+```
+
+This length-based inference only works when the matrix is non-square, so that
+`nrow` and `ncol` are distinct. For a **square** `n`-by-`n` matrix a bare
+length-`n` vector is ambiguous --- its length matches both dimensions --- and
+`delarr` resolves the tie to **row-aligned** (one value per row, broadcast
+across the columns). This matches base R, where `matrix + vector` recycles the
+vector down the columns and so also aligns element `i` to row `i`. `delarr`
+emits a one-time warning at this point to flag the ambiguity:
+
+```{r broadcast-square, eval = FALSE}
+sq <- matrix(1:9, 3, 3)
+biased <- delarr(sq) + c(10, 20, 30)
+#> Warning: Ambiguous broadcast: a length-3 vector against a square 3x3
+#> matrix is interpreted as row-aligned (one value per row) ...
+collect(biased)
+```
+
+If you actually want **column** alignment on a square matrix you cannot express
+it with a bare vector; pass an explicit conformable matrix instead:
+
+```{r broadcast-square-cols, eval = FALSE}
+collect(delarr(sq) + matrix(c(10, 20, 30), 3, 3, byrow = TRUE))
+```
+
+Silence the warning with `options(delarr.warn_ambiguous_broadcast = FALSE)` once
+you have confirmed the row-aligned default is what you intend.
 
 ## How do you stream a result to HDF5?
 
 `delarr_hdf5()` reads a dataset lazily, and `hdf5_writer()` lets you stream the
 transformed result back to disk without materializing the full output matrix in
-R.
+R. The HDF5 backend is optional: install the `hdf5r` package to enable it. The
+code below runs only when `hdf5r` is available.
 
-```{r stream-hdf5}
+```{r prepare-hdf5-input, include = FALSE, eval = has_hdf5}
 tf_in <- tempfile(fileext = ".h5")
 tf_out <- tempfile(fileext = ".h5")
 
 input <- matrix(runif(30), 5, 6)
 write_hdf5(input, tf_in, "X")
+```
 
+```{r stream-hdf5, eval = has_hdf5}
 X <- delarr_hdf5(tf_in, "X")
 writer <- hdf5_writer(tf_out, "X_z", ncol = ncol(X), chunk = c(5L, 3L))
 
 collect(X |> d_zscore(dim = "cols"), into = writer, chunk_size = 3L)
+```
 
+```{r inspect-hdf5-result, eval = has_hdf5}
 z <- read_hdf5(tf_out, "X_z")
-round(colMeans(z), 6)
-stopifnot(all(abs(colMeans(z)) < 1e-8))
+rbind(
+  mean = round(colMeans(z), 6),
+  sd = round(apply(z, 2L, stats::sd), 6)
+)
+```
 
+```{r check-hdf5-result, include = FALSE, eval = has_hdf5}
+stopifnot(
+  all(is.finite(z)),
+  all(abs(colMeans(z)) < 1e-8),
+  all(abs(apply(z, 2L, stats::sd) - 1) < 1e-8)
+)
 unlink(c(tf_in, tf_out))
 ```
 
@@ -110,15 +159,17 @@ A custom backend only needs matrix dimensions and a `pull()` function that can
 return arbitrary row and column slices. Here the backing store is just another
 matrix, but the same pattern works for databases, APIs, or memory-mapped files.
 
-```{r custom-backend}
+```{r make-custom-source, include = FALSE}
 source_mat <- matrix(
   seq_len(60),
   nrow = 10,
   ncol = 6,
   dimnames = list(paste0("row_", 1:10), paste0("col_", 1:6))
 )
+```
 
-seed <- delarr_seed(
+```{r custom-backend}
+custom <- delarr_backend(
   nrow = nrow(source_mat),
   ncol = ncol(source_mat),
   pull = function(rows = NULL, cols = NULL) {
@@ -129,18 +180,21 @@ seed <- delarr_seed(
   dimnames = dimnames(source_mat)
 )
 
-custom_result <- delarr(seed)[1:4, 2:5] |>
+custom_result <- custom[1:4, 2:5] |>
   d_map(~ .x^2) |>
   collect(chunk_size = 2L)
 
-stopifnot(isTRUE(all.equal(custom_result, source_mat[1:4, 2:5]^2)))
 custom_result
+```
+
+```{r check-custom-backend, include = FALSE}
+stopifnot(isTRUE(all.equal(custom_result, source_mat[1:4, 2:5]^2)))
 ```
 
 ## Where should you go next?
 
-Use `?collect` when you want to control chunk size or stream into a writer,
-`?delarr_seed` when you need a custom backend, and
+Use `collect()` when you want to control chunk size or stream into a writer,
+`delarr_backend()` when you need a custom backend, and
 `vignette("advanced", package = "delarr")` for execution plans, streamed
 multi-reducer summaries, block-wise workflows, delayed matrix products, and
 optional shared-memory workers.

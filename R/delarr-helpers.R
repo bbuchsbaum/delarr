@@ -34,9 +34,9 @@ where_mask <- function(mat, predicate, fill) {
     if (length(mask) != length(mat)) {
       stop("predicate must return a conformable mask with one value per element", call. = FALSE)
     }
-    mask <- matrix(mask, nrow = nrow(mat), ncol = ncol(mat))
+    dim(mask) <- dim(mat)
   } else if (!identical(mask_dims, dim(mat))) {
-    stop("predicate must return a matrix mask conformable to the input", call. = FALSE)
+    stop("predicate must return a mask conformable to the input", call. = FALSE)
   }
   if (length(fill) != 1L) {
     stop("fill must be a scalar value", call. = FALSE)

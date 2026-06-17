@@ -77,15 +77,18 @@ lzy |>
   dimensions.
 - `delarr_hdf5()` exposes a dataset through `hdf5r`, including N-dimensional
   datasets.
+- `delarr_mmap()` streams 2D matrices from a memory-mapped binary file via the
+  `mmap` package.
 - `delarr_backend()` lets you create a seed from any `(rows, cols) -> matrix`
-pull function.
-- `delarr_mmap()` currently supports 2D matrices only.
+  pull function.
 - `hdf5_writer()` pairs with `collect(into = ...)` to stream results back to
   disk without materialising the full matrix in memory (supply `ncol` to size
   the destination dataset up front).
 
-Additional backends (e.g., mmap) can be layered on by supplying a compatible
-pull function; no extra dependencies ship in the core package.
+The core package depends only on `rlang`. The `hdf5r` and `mmap` backends are
+optional: they live in `Suggests`, and the relevant constructors raise an
+informative error if the package is not installed. You can also add new backends
+yourself via `delarr_backend()` without taking on any extra dependency.
 
 ## Pipelined verbs
 
@@ -116,6 +119,16 @@ testthat::test_dir("tests/testthat")
 
 ## Roadmap
 
-- Add optional mmap and other backends once their APIs are finalised.
-- Introduce optional sparse adapters and BLAS helpers where it pays off.
-- Expand documentation with vignettes and performance benchmarks.
+The core abstraction is stable: the in-memory, HDF5, and memory-mapped backends,
+the fused verb pipeline, chunk-aware `collect()`, the streaming HDF5 writer, and
+lazy matrix products (`d_matmul()`) are all implemented, documented, and tested.
+Two vignettes (`vignette("delarr-getting-started")` and `vignette("advanced")`)
+cover the workflow end to end, and benchmark scripts live in `notes/`.
+
+Possible future directions, none of which are required for current use:
+
+- Optional sparse-matrix adapters, where a backend can return sparse blocks
+  without forcing them dense.
+- Writer-style `into=` targets for N-dimensional `collect()` (currently
+  supported for 2D output and via custom `into = function(...)` callbacks).
+- Promoting the `notes/` benchmarks into a dedicated performance article.

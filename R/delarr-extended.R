@@ -6,19 +6,92 @@
 #' @return A transposed `delarr`.
 #' @export
 d_transpose <- function(x, chunk_size = NULL) {
+  d_aperm(x, c(2L, 1L), chunk_size = chunk_size)
+}
+
+pull_delarr_block <- function(x, indices, chunk_size = NULL) {
+  if (!length(x$ops)) {
+    if (length(indices) == 2L && !is_nd_seed(x$seed)) {
+      return(pull_seed(x$seed, rows = indices[[1L]], cols = indices[[2L]]))
+    }
+    return(pull_seed_nd(x$seed, indices))
+  }
+  collect(do.call(`[`, c(list(x), indices, list(drop = FALSE))),
+          chunk_size = chunk_size)
+}
+
+#' Permute dimensions of a delayed array
+#'
+#' @param x A `delarr`.
+#' @param perm A permutation of `seq_along(dim(x))`.
+#' @param chunk_size Optional chunk size used for internal pulls.
+#'
+#' @return A permuted `delarr`.
+#' @export
+d_aperm <- function(x, perm = rev(seq_along(dim(x))), chunk_size = NULL) {
   stopifnot(inherits(x, "delarr"))
   dx <- dim(x)
-  delarr_backend(
-    nrow = dx[2],
-    ncol = dx[1],
-    pull = function(rows = NULL, cols = NULL) {
-      rows <- rows %||% seq_len(dx[2])
-      cols <- cols %||% seq_len(dx[1])
-      block <- collect(x[cols, rows, drop = FALSE], chunk_size = chunk_size)
-      t(block)
+  ndim <- length(dx)
+  perm <- as.integer(perm)
+  if (!length(perm) || length(perm) != ndim) {
+    stop("perm must have one entry per dimension", call. = FALSE)
+  }
+  if (anyNA(perm) || !setequal(perm, seq_len(ndim))) {
+    stop("perm must be a permutation of seq_along(dim(x))", call. = FALSE)
+  }
+  if (identical(perm, seq_len(ndim))) {
+    return(x)
+  }
+
+  source_dimnames <- dimnames(x)
+  out_dimnames <- source_dimnames[perm]
+  hint <- x$seed$chunk_hint
+  chunk_hint <- NULL
+  if (is.list(hint)) {
+    chunk_hint <- stats::setNames(vector("list", ndim), paste0("axis", seq_len(ndim)))
+    for (out_axis in seq_len(ndim)) {
+      src_axis <- perm[[out_axis]]
+      hint_value <- hint[[paste0("axis", src_axis)]]
+      if (is.null(hint_value) && src_axis == 1L) hint_value <- hint[["rows"]]
+      if (is.null(hint_value) && src_axis == 2L) hint_value <- hint[["cols"]]
+      chunk_hint[[out_axis]] <- hint_value
+    }
+    chunk_hint$rows <- chunk_hint[[1L]]
+    if (ndim >= 2L) {
+      chunk_hint$cols <- chunk_hint[[2L]]
+    }
+  }
+
+  if (ndim == 2L) {
+    return(delarr_backend(
+      nrow = dx[[perm[[1L]]]],
+      ncol = dx[[perm[[2L]]]],
+      pull = function(rows = NULL, cols = NULL) {
+        out_indices <- list(
+          rows %||% seq_len(dx[[perm[[1L]]]]),
+          cols %||% seq_len(dx[[perm[[2L]]]])
+        )
+        src_indices <- vector("list", 2L)
+        src_indices[perm] <- out_indices
+        block <- pull_delarr_block(x, src_indices, chunk_size = chunk_size)
+        aperm(block, perm = perm)
+      },
+      chunk_hint = chunk_hint,
+      dimnames = out_dimnames
+    ))
+  }
+
+  delarr(delarr_seed_nd(
+    dims = dx[perm],
+    pull = function(indices) {
+      src_indices <- vector("list", ndim)
+      src_indices[perm] <- indices
+      block <- pull_delarr_block(x, src_indices, chunk_size = chunk_size)
+      aperm(block, perm = perm)
     },
-    chunk_hint = list(cols = x$seed$chunk_hint$rows %||% x$seed$chunk_hint$cols)
-  )
+    chunk_hint = chunk_hint,
+    dimnames = out_dimnames
+  ))
 }
 
 #' @export
@@ -47,31 +120,58 @@ d_matmul <- function(x, y, chunk_size = NULL) {
     stop("Non-conformable arguments for matrix multiplication", call. = FALSE)
   }
   state <- new.env(parent = emptyenv())
-  state$lhs_rows <- NULL
-  state$lhs_panel <- NULL
-  state$rhs_cols <- NULL
-  state$rhs_panel <- NULL
+  state$lhs_rows_key <- NULL
+  state$lhs_blocks <- list()
+  state$rhs_cols_key <- NULL
+  state$rhs_blocks <- list()
+  inner_chunk <- as.integer(max(
+    1L,
+    min(
+      dx[2],
+      chunk_size %||%
+        x$seed$chunk_hint$cols %||%
+        y$seed$chunk_hint$rows %||%
+        256L
+    )
+  ))
+  inner_chunks <- seq_chunk(dx[2], inner_chunk)
 
-  fetch_lhs_panel <- function(rows) {
-    if (!is.null(state$lhs_panel) && identical(state$lhs_rows, rows)) {
-      return(state$lhs_panel)
+  fetch_lhs_block <- function(rows, kpos) {
+    rows_key <- paste(rows, collapse = ",")
+    k_key <- paste(kpos, collapse = ",")
+    if (!identical(state$lhs_rows_key, rows_key)) {
+      state$lhs_rows_key <- rows_key
+      state$lhs_blocks <- list()
     }
-    # collect() usually varies output cols while rows stay fixed; caching the
-    # contracted lhs panel avoids replaying the full left pipeline per tile.
-    panel <- collect(x[rows, , drop = FALSE], chunk_size = chunk_size)
-    state$lhs_rows <- rows
-    state$lhs_panel <- panel
-    panel
+    if (!is.null(state$lhs_blocks[[k_key]])) {
+      return(state$lhs_blocks[[k_key]])
+    }
+    block <- collect(
+      x[rows, kpos, drop = FALSE],
+      chunk_size = max(1L, length(kpos)),
+      chunk_margin = "cols"
+    )
+    state$lhs_blocks[[k_key]] <- block
+    block
   }
 
-  fetch_rhs_panel <- function(cols) {
-    if (!is.null(state$rhs_panel) && identical(state$rhs_cols, cols)) {
-      return(state$rhs_panel)
+  fetch_rhs_block <- function(kpos, cols) {
+    cols_key <- paste(cols, collapse = ",")
+    k_key <- paste(kpos, collapse = ",")
+    if (!identical(state$rhs_cols_key, cols_key)) {
+      state$rhs_cols_key <- cols_key
+      state$rhs_blocks <- list()
     }
-    panel <- collect(y[, cols, drop = FALSE], chunk_size = chunk_size)
-    state$rhs_cols <- cols
-    state$rhs_panel <- panel
-    panel
+    if (!is.null(state$rhs_blocks[[k_key]])) {
+      return(state$rhs_blocks[[k_key]])
+    }
+    block <- collect(
+      y[kpos, cols, drop = FALSE],
+      chunk_size = max(1L, length(cols)),
+      chunk_margin = "cols"
+    )
+    state$rhs_blocks[[k_key]] <- block
+    block
   }
 
   delarr_backend(
@@ -80,9 +180,17 @@ d_matmul <- function(x, y, chunk_size = NULL) {
     pull = function(rows = NULL, cols = NULL) {
       rows <- rows %||% seq_len(dx[1])
       cols <- cols %||% seq_len(dy[2])
-      lhs <- fetch_lhs_panel(rows)
-      rhs <- fetch_rhs_panel(cols)
-      lhs %*% rhs
+      if (!length(rows) || !length(cols)) {
+        return(matrix(0, nrow = length(rows), ncol = length(cols)))
+      }
+      out <- NULL
+      for (kpos in inner_chunks) {
+        lhs <- fetch_lhs_block(rows, kpos)
+        rhs <- fetch_rhs_block(kpos, cols)
+        partial <- lhs %*% rhs
+        out <- if (is.null(out)) partial else out + partial
+      }
+      out
     },
     chunk_hint = list(cols = y$seed$chunk_hint$cols %||% 1024L),
     dimnames = list(dimnames(x)[[1L]], dimnames(y)[[2L]])

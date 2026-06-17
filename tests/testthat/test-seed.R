@@ -102,3 +102,60 @@ test_that("pull_seed errors if pull returns the wrong shape", {
   )
   expect_error(pull_seed(seed, rows = 1:2, cols = 1:3), "expected 2x3")
 })
+
+test_that("delarr_seed_nd validates dimensions and pull function", {
+  expect_error(
+    delarr_seed_nd(dims = 4L, pull = function(indices) array(0, dim = c(4))),
+    "length >= 2"
+  )
+  expect_error(
+    delarr_seed_nd(dims = c(2L, -1L), pull = function(indices) matrix(0, 2, 1)),
+    "non-negative"
+  )
+  expect_error(
+    delarr_seed_nd(dims = c(2L, 3L), pull = "not a function"),
+    "pull must be a function"
+  )
+})
+
+test_that("pull_seed_nd validates index length and result shape", {
+  arr <- array(seq_len(24), dim = c(2, 3, 4))
+  seed <- delarr_seed_nd(
+    dims = dim(arr),
+    pull = function(indices) {
+      idx <- lapply(seq_along(dim(arr)), function(k) {
+        indices[[k]] %||% seq_len(dim(arr)[[k]])
+      })
+      do.call(`[`, c(list(arr), idx, list(drop = FALSE)))
+    }
+  )
+
+  expect_error(pull_seed_nd(seed, list(1L, 1L)), "length 3")
+  expect_equal(pull_seed_nd(seed, list(1:2, 1:3, 1:4)), arr)
+
+  vector_seed <- delarr_seed_nd(
+    dims = c(2L, 3L, 4L),
+    pull = function(indices) as.vector(arr)
+  )
+  reshaped <- pull_seed_nd(vector_seed, list(NULL, NULL, NULL))
+  expect_equal(dim(reshaped), dim(arr))
+  expect_equal(as.vector(reshaped), as.vector(arr))
+
+  wrong_length_seed <- delarr_seed_nd(
+    dims = c(2L, 3L),
+    pull = function(indices) seq_len(5)
+  )
+  expect_error(
+    pull_seed_nd(wrong_length_seed, list(NULL, NULL)),
+    "expected 6"
+  )
+
+  wrong_dim_seed <- delarr_seed_nd(
+    dims = c(2L, 3L, 4L),
+    pull = function(indices) array(0, dim = c(2L, 3L, 3L))
+  )
+  expect_error(
+    pull_seed_nd(wrong_dim_seed, list(NULL, NULL, NULL)),
+    "expected \\[2,3,4\\]"
+  )
+})

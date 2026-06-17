@@ -43,6 +43,20 @@ delarr <- function(x, ...) {
     )
     return(new_delarr(seed = seed, ops = list()))
   }
+  if (is.array(x) && length(dim(x)) >= 2L) {
+    d <- dim(x)
+    seed <- delarr_seed_nd(
+      dims = d,
+      pull = function(indices) {
+        idx <- lapply(seq_along(d), function(k) {
+          indices[[k]] %||% seq_len(d[k])
+        })
+        do.call(`[`, c(list(x), idx, list(drop = FALSE)))
+      },
+      dimnames = dimnames(x)
+    )
+    return(new_delarr(seed = seed, ops = list()))
+  }
   stop("Unsupported input for delarr()", call. = FALSE)
 }
 
@@ -62,71 +76,110 @@ new_delarr <- function(seed, ops = list()) {
   )
 }
 
-#' Subset a delayed matrix
+#' Subset a delayed array
 #'
-#' Performs matrix-style slicing lazily, capturing the indices in the DAG.
+#' Performs array-style slicing lazily, capturing the indices in the DAG.
+#' For 2D arrays, standard `x[i, j]` syntax works. For N-d arrays, provide
+#' one index expression per dimension: `x[i, j, k, ...]`.
 #'
 #' @param x A `delarr`.
-#' @param i Row indices or `NULL`.
-#' @param j Column indices or `NULL`.
+#' @param ... Index expressions, one per dimension. Missing indices select all.
 #' @param drop Logical indicating whether to drop dimensions (ignored lazily).
 #'
 #' @return A `delarr` containing the slice operation.
 #' @export
-`[.delarr` <- function(x, i, j, drop = FALSE) {
-  op <- list(
-    op = "slice",
-    rows = if (missing(i)) NULL else i,
-    cols = if (missing(j)) NULL else j,
-    drop = drop
-  )
+`[.delarr` <- function(x, ..., drop = FALSE) {
+  ndim <- length(x$seed$dims)
+
+  # Parse sys.call() to handle missing index args (e.g., x[, j] or x[i, , k])
+  sc <- as.list(sys.call())
+  # sc[[1]] = `[`, sc[[2]] = x, sc[[3..]] = index exprs, possibly drop
+  sc <- sc[-(1:2)]  # remove function name and x
+  # Remove named 'drop' if present
+  drop_pos <- match("drop", names(sc))
+  if (!is.na(drop_pos)) sc <- sc[-drop_pos]
+
+  n_idx <- length(sc)
+
+  if (n_idx == 0L) {
+    return(x)
+  }
+
+  pf <- parent.frame()
+
+  # For 2D with up to 2 index args, use legacy rows/cols path
+  if (ndim == 2L && n_idx <= 2L) {
+    rows <- if (n_idx >= 1L && !identical(sc[[1L]], quote(expr = ))) {
+      eval(sc[[1L]], pf)
+    } else {
+      NULL
+    }
+    cols <- if (n_idx >= 2L && !identical(sc[[2L]], quote(expr = ))) {
+      eval(sc[[2L]], pf)
+    } else {
+      NULL
+    }
+    op <- list(op = "slice", rows = rows, cols = cols, drop = drop)
+    return(add_op(x, op))
+  }
+
+  # N-d path: build indices list
+  indices <- lapply(sc, function(a) {
+    if (identical(a, quote(expr = ))) NULL else eval(a, pf)
+  })
+
+  # Pad with NULLs if fewer indices than dimensions
+  if (length(indices) < ndim) {
+    indices <- c(indices, rep(list(NULL), ndim - length(indices)))
+  }
+
+  op <- list(op = "slice", indices = indices, drop = drop)
   add_op(x, op)
 }
 
-#' Dimensions of a delayed matrix
+#' Dimensions of a delayed array
 #'
 #' Computes the realised dimensions after taking queued slice and reduce
 #' operations into account.
 #'
 #' @param x A `delarr`.
 #'
-#' @return An integer vector of length two.
+#' @return An integer vector of dimension extents.
 #' @export
 dim.delarr <- function(x) {
   plan <- compile_plan(x)
-  dims <- c(length(plan$rows), length(plan$cols))
-  if (is.null(plan$reduce)) {
-    return(dims)
+  dims <- vapply(plan$indices, length, integer(1))
+  if (!is.null(plan$reduce)) {
+    collapse_axis <- collapse_axes_from_reduce(plan$reduce, ndim = length(dims))
+    dims[collapse_axis] <- 1L
   }
-  if (identical(plan$reduce$dim, "rows")) {
-    return(c(dims[1], 1L))
-  }
-  c(1L, dims[2])
+  dims
 }
 
-#' Dimension names for a delayed matrix
+#' Dimension names for a delayed array
 #'
 #' @param x A `delarr`.
 #'
-#' @return A list of row and column names or `NULL` placeholders.
+#' @return A list of per-dimension names or `NULL` placeholders.
 #' @export
 dimnames.delarr <- function(x) {
-  seed_dimnames <- x$seed$dimnames %||% list(NULL, NULL)
-  if (length(seed_dimnames) < 2L) {
-    seed_dimnames <- c(seed_dimnames, rep(list(NULL), 2L - length(seed_dimnames)))
+  ndim <- length(x$seed$dims)
+  seed_dimnames <- x$seed$dimnames %||% rep(list(NULL), ndim)
+  if (length(seed_dimnames) < ndim) {
+    seed_dimnames <- c(seed_dimnames,
+                       rep(list(NULL), ndim - length(seed_dimnames)))
   }
 
   plan <- compile_plan(x)
-  row_names <- if (is.null(seed_dimnames[[1L]])) NULL else seed_dimnames[[1L]][plan$rows]
-  col_names <- if (is.null(seed_dimnames[[2L]])) NULL else seed_dimnames[[2L]][plan$cols]
-
-  if (is.null(plan$reduce)) {
-    return(list(row_names, col_names))
+  result <- lapply(seq_len(ndim), function(k) {
+    dn <- seed_dimnames[[k]]
+    if (is.null(dn)) NULL else dn[plan$indices[[k]]]
+  })
+  if (!is.null(plan$reduce)) {
+    collapse_axis <- collapse_axes_from_reduce(plan$reduce, ndim = ndim)
+    result[collapse_axis] <- rep(list(NULL), length(collapse_axis))
   }
-  if (identical(plan$reduce$dim, "rows")) {
-    return(list(row_names, NULL))
-  }
-  list(NULL, col_names)
+  result
 }
 
 #' Pretty-print a delayed matrix
@@ -138,29 +191,35 @@ dimnames.delarr <- function(x) {
 #' @export
 print.delarr <- function(x, ...) {
   d <- dim(x)
+  dim_str <- paste(d, collapse = " x ")
   if (length(x$ops)) {
     labels <- vapply(x$ops, describe_op, character(1))
     labels <- labels[labels != ""]
     if (length(labels)) {
-      cat("<delarr> ", d[1], " x ", d[2], " - ops: ", paste(labels, collapse = " -> "), "\n", sep = "")
+      cat("<delarr> ", dim_str, " - ops: ", paste(labels, collapse = " -> "), "\n", sep = "")
       return(invisible(x))
     }
   }
-  cat("<delarr> ", d[1], " x ", d[2], " lazy\n", sep = "")
+  cat("<delarr> ", dim_str, " lazy\n", sep = "")
   invisible(x)
 }
 
 describe_op <- function(op) {
+  dim_label <- op$dim %||% if (!is.null(op$axis)) {
+    paste0("axis=", paste(op$axis, collapse = ","))
+  } else {
+    "?"
+  }
   switch(op$op,
     slice = "slice",
     emap = "map",
     emap2 = "map2",
     emap_const = "map_const",
-    center = paste0("center(", op$dim, ")"),
-    scale = paste0("scale(", op$dim, ")"),
-    zscore = paste0("zscore(", op$dim, ")"),
-    detrend = paste0("detrend(", op$dim, ")"),
-    reduce = paste0("reduce(", op$dim, ")"),
+    center = paste0("center(", dim_label, ")"),
+    scale = paste0("scale(", dim_label, ")"),
+    zscore = paste0("zscore(", dim_label, ")"),
+    detrend = paste0("detrend(", dim_label, ")"),
+    reduce = paste0("reduce(", dim_label, ")"),
     where = "where",
     ""
   )
@@ -197,6 +256,7 @@ Ops.delarr <- function(e1, e2) {
     )))
   }
   if (inherits(e1, "delarr")) {
+    warn_if_ambiguous_broadcast(e1, e2)
     return(add_op(e1, list(
       op = "emap_const",
       op_name = op,
@@ -206,6 +266,7 @@ Ops.delarr <- function(e1, e2) {
     )))
   }
   if (inherits(e2, "delarr")) {
+    warn_if_ambiguous_broadcast(e2, e1)
     return(add_op(e2, list(
       op = "emap_const",
       op_name = op,
@@ -215,6 +276,41 @@ Ops.delarr <- function(e1, e2) {
     )))
   }
   stop("Operation not supported", call. = FALSE)
+}
+
+# Warn, at lazy-op construction time, when a bare atomic vector is broadcast
+# against a square matrix. In that case the row/column orientation cannot be
+# inferred from length alone (`length(rhs) == nrow == ncol`), and delarr
+# resolves the tie to row-aligned (one value per row), matching base R's
+# `matrix + vector` recycling down columns. The check fires here -- not inside
+# the chunk-evaluation hot path -- so the warning is emitted once per operation
+# rather than once per chunk. Silence with
+# `options(delarr.warn_ambiguous_broadcast = FALSE)`.
+warn_if_ambiguous_broadcast <- function(x, rhs) {
+  if (!isTRUE(getOption("delarr.warn_ambiguous_broadcast", TRUE))) {
+    return(invisible(NULL))
+  }
+  if (!is.atomic(rhs) || is.array(rhs) || length(rhs) <= 1L) {
+    return(invisible(NULL))
+  }
+  dims <- dim(x)
+  if (length(dims) != 2L || dims[1L] != dims[2L] || length(rhs) != dims[1L]) {
+    return(invisible(NULL))
+  }
+  warning(
+    sprintf(
+      paste0(
+        "Ambiguous broadcast: a length-%d vector against a square %dx%d ",
+        "matrix is interpreted as row-aligned (one value per row), matching ",
+        "base R recycling. For column alignment pass an explicit matrix, ",
+        "e.g. matrix(v, %d, %d, byrow = TRUE). Silence with ",
+        "options(delarr.warn_ambiguous_broadcast = FALSE)."
+      ),
+      length(rhs), dims[1L], dims[2L], dims[1L], dims[2L]
+    ),
+    call. = FALSE
+  )
+  invisible(NULL)
 }
 
 add_op <- function(x, op) {

@@ -1,3 +1,14 @@
+.require_hdf5r <- function() {
+  if (!requireNamespace("hdf5r", quietly = TRUE)) {
+    stop(
+      "Package 'hdf5r' is required for HDF5 backends. ",
+      "Install it with install.packages(\"hdf5r\").",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 #' Write a matrix to an HDF5 file
 #'
 #' Simple convenience function to write a matrix to an HDF5 dataset. For
@@ -23,6 +34,7 @@
 #' # Clean up
 #' unlink(tf)
 write_hdf5 <- function(x, path, dataset, compression = 4L) {
+  .require_hdf5r()
   if (!is.matrix(x)) {
     stop("x must be a matrix", call. = FALSE)
   }
@@ -60,6 +72,7 @@ write_hdf5 <- function(x, path, dataset, compression = 4L) {
 #' # Clean up
 #' unlink(tf)
 read_hdf5 <- function(path, dataset) {
+  .require_hdf5r()
   f <- hdf5r::H5File$new(path, mode = "r")
   on.exit(f$close_all(), add = TRUE)
   f[[dataset]]$read()
@@ -109,6 +122,7 @@ read_hdf5 <- function(path, dataset) {
 #' # Clean up
 #' unlink(c(tf_in, tf_out))
 hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression = 4L) {
+  .require_hdf5r()
   if (length(chunk) != 2L) {
     stop("chunk must be a length-2 integer vector", call. = FALSE)
   }

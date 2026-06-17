@@ -281,6 +281,7 @@ test_that("print displays pipeline sketch", {
 })
 
 test_that("HDF5 writer streams results to disk", {
+  skip_if_not_installed("hdf5r")
   path <- tempfile(fileext = ".h5")
   on.exit(unlink(path), add = TRUE)
   input <- matrix(runif(30), 5, 6)
