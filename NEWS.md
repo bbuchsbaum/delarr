@@ -1,5 +1,23 @@
 # delarr (development version)
 
+## Bug fixes
+
+* Unary `-` and `+` on a `delarr` (e.g. `-x`) previously errored because the
+  `Ops` group generic was called with `e2` missing. They now stay lazy and
+  match their base-matrix counterparts.
+* The streaming full-matrix `mean` reduction divided by `n_rows * n_cols`
+  computed in integer arithmetic, which overflowed to `NA` for matrices with
+  more than `.Machine$integer.max` elements. The element count is now computed
+  in double precision.
+
+## New features
+
+* Added a `Math` group generic method for `delarr`, so `sqrt()`, `abs()`,
+  `exp()`, `log()`, `round()`, the trig functions, and the other elementwise
+  math generics work lazily (with extra arguments such as `round(x, 2)` and
+  `log(x, base = 2)` forwarded). Non-elementwise cumulative generics
+  (`cumsum()` and friends) raise an informative error.
+
 ## Broadcasting
 
 * Broadcasting a bare length-`n` vector against a **square** `n`-by-`n` matrix

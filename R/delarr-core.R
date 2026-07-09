@@ -239,14 +239,25 @@ as.matrix.delarr <- function(x, ...) {
 #' Arithmetic and comparison operators for `delarr`
 #'
 #' Supports elementwise operations between delayed matrices or between a
-#' delayed matrix and scalars/matrices.
+#' delayed matrix and scalars/matrices. The unary `+`/`-` forms (e.g. `-x`)
+#' are also handled and stay lazy.
 #'
-#' @param e1,e2 Operands supplied by the R math group generics.
+#' @param e1,e2 Operands supplied by the R math group generics. For the unary
+#'   `+`/`-` forms `e2` is missing.
 #'
 #' @return A `delarr` representing the fused operation.
 #' @export
 Ops.delarr <- function(e1, e2) {
   op <- .Generic
+  # Unary `+`/`-` are dispatched through the Ops group generic with `e2`
+  # missing. Apply the operator lazily as an elementwise map so that `-x`
+  # (and `+x`) behave like their base-matrix counterparts.
+  if (missing(e2)) {
+    return(add_op(e1, list(
+      op = "emap",
+      fn = function(a) do.call(op, list(a))
+    )))
+  }
   if (inherits(e1, "delarr") && inherits(e2, "delarr")) {
     return(add_op(e1, list(
       op = "emap2",
@@ -311,6 +322,40 @@ warn_if_ambiguous_broadcast <- function(x, rhs) {
     call. = FALSE
   )
   invisible(NULL)
+}
+
+#' Elementwise math functions for `delarr`
+#'
+#' Supports the R `Math` group generics (`sqrt()`, `abs()`, `exp()`, `log()`,
+#' `round()`, `floor()`, the trig functions, and so on) lazily, as fused
+#' elementwise maps. Extra arguments are forwarded to the underlying function,
+#' so `round(x, 2)` and `log(x, base = 2)` work as expected.
+#'
+#' The cumulative generics (`cumsum()`, `cumprod()`, `cummax()`, `cummin()`)
+#' are not elementwise and cannot be evaluated chunk-by-chunk, so they raise an
+#' error rather than returning silently incorrect results.
+#'
+#' @param x A `delarr`.
+#' @param ... Additional arguments forwarded to the math generic.
+#'
+#' @return A `delarr` representing the fused elementwise operation.
+#' @export
+#' @examples
+#' mat <- matrix(1:12, nrow = 3, ncol = 4)
+#' darr <- delarr(mat)
+#' collect(sqrt(darr))
+#' collect(-darr)
+Math.delarr <- function(x, ...) {
+  g <- .Generic
+  if (g %in% c("cumsum", "cumprod", "cummax", "cummin")) {
+    stop(sprintf("%s() is not supported for delarr (not an elementwise op)", g),
+         call. = FALSE)
+  }
+  args <- list(...)
+  add_op(x, list(
+    op = "emap",
+    fn = function(a) do.call(g, c(list(a), args))
+  ))
 }
 
 add_op <- function(x, op) {

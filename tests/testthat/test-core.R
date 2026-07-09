@@ -300,3 +300,31 @@ test_that("HDF5 writer streams results to disk", {
   on.exit(file_out$close_all(), add = TRUE)
   expect_equal(file_out[["Y"]]$read(), collect(d_center(delarr(input), "cols")))
 })
+
+test_that("unary minus and plus stay lazy and match base R", {
+  mat <- matrix(as.double(1:12), 3, 4)
+  x <- delarr(mat)
+
+  neg <- -x
+  expect_s3_class(neg, "delarr")
+  expect_equal(collect(neg), -mat)
+  expect_equal(collect(+x), mat)
+
+  # Fuses with other ops and respects chunk boundaries
+  expect_equal(collect(-(x * 2), chunk_size = 2L), -(mat * 2))
+})
+
+test_that("Math group generics apply elementwise and lazily", {
+  mat <- matrix(as.double(1:12), 3, 4)
+  x <- delarr(mat)
+
+  expect_s3_class(sqrt(x), "delarr")
+  expect_equal(collect(sqrt(x)), sqrt(mat))
+  expect_equal(collect(abs(-x)), abs(mat))
+  expect_equal(collect(exp(x), chunk_size = 2L), exp(mat))
+  expect_equal(collect(round(x / 7, 2)), round(mat / 7, 2))
+  expect_equal(collect(log(x, base = 2)), log(mat, base = 2))
+
+  # Non-elementwise cumulative generics are rejected rather than wrong
+  expect_error(cumsum(x), "not an elementwise op")
+})

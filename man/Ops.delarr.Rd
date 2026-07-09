@@ -7,12 +7,14 @@
 \method{Ops}{delarr}(e1, e2)
 }
 \arguments{
-\item{e1, e2}{Operands supplied by the R math group generics.}
+\item{e1, e2}{Operands supplied by the R math group generics. For the unary
+\code{+}/\code{-} forms \code{e2} is missing.}
 }
 \value{
 A \code{delarr} representing the fused operation.
 }
 \description{
 Supports elementwise operations between delayed matrices or between a
-delayed matrix and scalars/matrices.
+delayed matrix and scalars/matrices. The unary \code{+}/\code{-} forms
+(e.g. \code{-x}) are also handled and stay lazy.
 }
