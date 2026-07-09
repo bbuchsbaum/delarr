@@ -1103,7 +1103,9 @@ collect <- function(x, into = NULL, chunk_size = NULL,
       if (!is.null(counts) && na_rm) {
         acc <- if (counts == 0) NA_real_ else acc / counts
       } else {
-        acc <- acc / (n_rows * n_cols)
+        # as.numeric() guards against integer overflow of the element count
+        # for very large streamed matrices (n_rows * n_cols > .Machine$integer.max).
+        acc <- acc / (as.numeric(n_rows) * as.numeric(n_cols))
       }
     } else if (!is.null(counts) && na_rm && counts == 0) {
       acc <- NA_real_
