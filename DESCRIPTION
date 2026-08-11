@@ -1,7 +1,7 @@
 Package: delarr
 Type: Package
 Title: Lazy Delayed Arrays with Fused Execution
-Version: 0.1.0
+Version: 0.1.0.9000
 Authors@R: 
     person(given = "Bradley", family = "Buchsbaum", role = c("aut", "cre"),
            email = "brad.buchsbaum@gmail.com")

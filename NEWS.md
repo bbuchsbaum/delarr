@@ -30,6 +30,10 @@
 
 # delarr 0.1.0
 
+* Added reconstructible provider seeds. Storage packages can now keep plain,
+  serializable descriptors in lazy plans and supply execution-time reads via
+  `delarr_provider_pull()` without embedding closures or live handles.
+
 First public release.
 
 ## Features

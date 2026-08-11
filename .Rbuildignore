@@ -5,6 +5,7 @@
 ^repomix-output\.xml$
 ^delarr_cheatsheet_v3\.md$
 ^\.gitignore$
+^\.git$
 ^vignettes/.*\.html$
 ^\.planning$
 ^doc$

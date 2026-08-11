@@ -103,6 +103,63 @@ test_that("pull_seed errors if pull returns the wrong shape", {
   expect_error(pull_seed(seed, rows = 1:2, cols = 1:3), "expected 2x3")
 })
 
+test_that("provider seeds are reconstructible and execute through dispatch", {
+  data <- matrix(1:20, 4, 5)
+  seed <- delarr_provider_seed(
+    provider = data,
+    dims = dim(data),
+    chunk_hint = list(rows = 2L, cols = 3L)
+  )
+
+  expect_s3_class(seed, "delarr_provider_seed")
+  expect_false(any(vapply(seed, is.function, logical(1))))
+  restored <- unserialize(serialize(seed, NULL))
+  expect_equal(pull_seed(restored, c(4, 1), c(5, 2)), data[c(4, 1), c(5, 2)])
+  expect_equal(
+    collect(delarr(restored)[c(3, 1), c(4, 2)]),
+    data[c(3, 1), c(4, 2), drop = FALSE]
+  )
+})
+
+test_that("provider seeds support N-dimensional reconstructible plans", {
+  data <- array(seq_len(24), dim = c(2, 3, 4))
+  x <- delarr_provider(data, dims = dim(data))
+  restored <- unserialize(serialize(x, NULL))
+
+  expect_equal(
+    collect(restored[2:1, 1:2, c(4, 2)]),
+    data[2:1, 1:2, c(4, 2), drop = FALSE]
+  )
+})
+
+test_that("provider seeds reject runtime state and malformed contracts", {
+  expect_error(
+    delarr_provider_seed(list(loader = function() NULL), c(2, 2)),
+    "cannot contain functions"
+  )
+  expect_error(
+    delarr_provider_seed(new.env(), c(2, 2)),
+    "cannot contain functions"
+  )
+  expect_error(delarr_provider_seed(list(), 2L), "length >= 2")
+  expect_error(delarr_provider_seed(list(), c(2, 2), chunk_hint = 2L), "list")
+
+  missing_method <- delarr_provider_seed(structure(list(), class = "unknown_provider"), c(2, 2))
+  expect_error(pull_seed(missing_method), "No delarr_provider_pull")
+})
+
+test_that("provider pull enforces exact returned dimensions", {
+  local_provider <- structure(list(), class = "bad_shape_provider")
+  registerS3method(
+    "delarr_provider_pull",
+    "bad_shape_provider",
+    function(provider, indices, ...) matrix(0, 1, 1),
+    envir = asNamespace("delarr")
+  )
+  seed <- delarr_provider_seed(local_provider, c(3, 4))
+  expect_error(pull_seed(seed, 1:2, 1:3), "expected 2x3")
+})
+
 test_that("delarr_seed_nd validates dimensions and pull function", {
   expect_error(
     delarr_seed_nd(dims = 4L, pull = function(indices) array(0, dim = c(4))),
