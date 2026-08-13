@@ -208,6 +208,16 @@ test_that("optimize_delarr removes no-op constants", {
   expect_equal(collect(x_opt), collect(x))
 })
 
+test_that("optimize_delarr removes subtract-zero and divide-by-one no-ops", {
+  mat <- matrix(as.double(1:12), 3, 4)
+  x <- delarr(mat) |>
+    (\(z) z - 0)() |>
+    (\(z) z / 1)()
+  x_opt <- optimize_delarr(x)
+  expect_lt(length(x_opt$ops), length(x$ops))
+  expect_equal(collect(x_opt), collect(x))
+})
+
 test_that("collect supports row chunking", {
   set.seed(25)
   mat <- matrix(rnorm(48), 6, 8)

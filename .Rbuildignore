@@ -22,3 +22,5 @@
 ^\.ecosystem\.yml$
 ^atlas$
 ^manual_cards\.jsonl$
+^cran-comments\.md$
+^CRAN-SUBMISSION$

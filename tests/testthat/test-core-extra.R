@@ -255,3 +255,87 @@ test_that("row-oriented center requires full eval but works across chunks", {
   result <- collect(d_center(x, dim = "rows"), chunk_size = 3L)
   expect_true(all(abs(rowMeans(result)) < 1e-10))
 })
+
+test_that("empty subscript returns delarr unchanged", {
+  mat <- matrix(1:12, 3, 4)
+  x <- delarr(mat)
+  expect_identical(do.call("[", list(x)), x)
+  expect_equal(collect(x[]), mat)
+})
+
+test_that("N-d subscript pads missing trailing indices", {
+  arr <- array(as.double(1:24), dim = c(2, 3, 4))
+  darr <- delarr(arr)
+  result <- collect(darr[1:2, ])
+  expect_equal(result, arr[1:2, , , drop = FALSE])
+})
+
+test_that("dimnames.delarr pads short seed dimnames", {
+  arr <- array(as.double(1:24), dim = c(2, 3, 4))
+  seed <- delarr_seed_nd(
+    dims = dim(arr),
+    pull = function(indices) {
+      idx <- lapply(seq_along(dim(arr)), function(k) {
+        indices[[k]] %||% seq_len(dim(arr)[[k]])
+      })
+      do.call(`[`, c(list(arr), idx, list(drop = FALSE)))
+    },
+    dimnames = list(c("a", "b"))
+  )
+  darr <- delarr(seed)
+  expect_equal(dimnames(darr)[[1]], c("a", "b"))
+  expect_null(dimnames(darr)[[3]])
+})
+
+test_that("d_scale accepts axis= for N-d arrays", {
+  arr <- array(rnorm(60), dim = c(3, 4, 5))
+  darr <- delarr(arr)
+  result <- collect(d_scale(darr, axis = 2L, center = TRUE, scale = FALSE))
+  expect_equal(dim(result), dim(arr))
+  means <- apply(result, 2, mean)
+  expect_true(all(abs(means) < 1e-10))
+})
+
+test_that("block_apply supports parallel execution on Unix", {
+  skip_on_os("windows")
+  mat <- matrix(1:20, 4, 5)
+  x <- delarr(mat)
+  res <- block_apply(
+    x,
+    margin = "cols",
+    size = 2L,
+    fn = colSums,
+    parallel = TRUE,
+    workers = 2L
+  )
+  expect_equal(unlist(res), colSums(mat))
+})
+
+test_that("collect into list writer finalizes target", {
+  mat <- matrix(1:12, 3, 4)
+  captured <- NULL
+  writer <- list(
+    write = function(block, ...) {
+      captured <<- block
+    },
+    finalize = function() {
+      captured <<- captured + 100
+    }
+  )
+  result <- collect(delarr(mat) |> d_map(~ .x + 1), into = writer)
+  expect_null(result)
+  expect_equal(captured, mat + 1 + 100)
+})
+
+test_that("2D full-matrix min/max reductions handle NA chunks", {
+  mat <- matrix(c(1, NA, 3, NA, 5, 6), 2, 3)
+  x <- delarr(mat)
+  expect_equal(
+    collect(d_reduce(x, min, axis = c(1L, 2L), na.rm = TRUE)),
+    min(mat, na.rm = TRUE)
+  )
+  expect_equal(
+    collect(d_reduce(x, max, axis = c(1L, 2L), na.rm = TRUE)),
+    max(mat, na.rm = TRUE)
+  )
+})

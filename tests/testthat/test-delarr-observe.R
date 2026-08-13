@@ -69,3 +69,35 @@ test_that("profile_collect validates reps and reports output size", {
   expect_true(all(!is.na(prof$output_size_bytes)))
   expect_equal(prof$output_class, "array")
 })
+
+test_that("explain clears chunk margin when axis is blocked by centering", {
+  arr <- array(as.double(1:24), dim = c(2, 3, 4))
+  pipeline <- delarr(arr) |> d_center(axis = 2L) |> d_reduce(sum, axis = 2L)
+  info <- explain(pipeline, chunk_margin = 1L, target_bytes = 100)
+  expect_null(info$chunk_margin)
+  expect_true(is.na(info$chunk_size))
+})
+
+test_that("print.delarr_explain shows operation plan when present", {
+  mat <- matrix(1:12, 3, 4)
+  info <- explain(delarr(mat) |> d_map(~ .x + 1) |> d_center("cols"))
+  output <- paste(capture.output(print(info)), collapse = "\n")
+  expect_match(output, "plan:", fixed = TRUE)
+  expect_match(output, "map", fixed = TRUE)
+  expect_match(output, "center", fixed = TRUE)
+})
+
+test_that("print.delarr_explain labels full-pass chunking", {
+  arr <- array(seq_len(24), dim = c(2, 3, 4))
+  info <- explain(
+    d_reduce(
+      delarr(arr),
+      function(x, na.rm = FALSE) sum(x, na.rm = na.rm),
+      axis = 3L
+    ),
+    chunk_margin = 3L,
+    target_bytes = 32
+  )
+  output <- paste(capture.output(print(info)), collapse = "\n")
+  expect_match(output, "chunks: 1 full", fixed = TRUE)
+})

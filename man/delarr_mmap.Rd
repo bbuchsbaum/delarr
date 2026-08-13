@@ -27,19 +27,21 @@ This backend supports 2D matrices only. For N-d arrays, use
 \code{\link[=delarr_hdf5]{delarr_hdf5()}} or wrap an in-memory array with \code{\link[=delarr]{delarr()}}.
 }
 \examples{
-# Create a binary file with matrix data
-mat <- matrix(1:20, nrow = 4, ncol = 5)
-tf <- tempfile()
-writeBin(as.double(mat), tf)
+if (requireNamespace("mmap", quietly = TRUE)) {
+  # Create a binary file with matrix data
+  mat <- matrix(1:20, nrow = 4, ncol = 5)
+  tf <- tempfile()
+  writeBin(as.double(mat), tf)
 
-# Load as delayed array
-darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
-darr
+  # Load as delayed array
+  darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
+  darr
 
-# Apply operations and collect
-result <- darr |> d_map(~ .x * 2) |> collect()
-result
+  # Apply operations and collect
+  result <- darr |> d_map(~ .x * 2) |> collect()
+  result
 
-# Clean up
-unlink(tf)
+  # Clean up
+  unlink(tf)
+}
 }

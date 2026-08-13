@@ -145,3 +145,32 @@ test_that("hdf5_writer fails clearly for reduction outputs", {
     "only supports matrix block outputs"
   )
 })
+
+test_that("hdf5_writer validates streamed write positions", {
+  skip_if_not_installed("hdf5r")
+  tf <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf), add = TRUE)
+  writer <- hdf5_writer(tf, "X", ncol = 4)
+  expect_error(
+    writer$write(matrix(1:6, 2, 3), rows = 1:2, cols = 1:3),
+    "requires column positions"
+  )
+  expect_error(
+    writer$write(matrix(1:10, 2, 5), rows = 1:2, cols = 1:5, positions = 1:5),
+    "beyond declared ncol"
+  )
+})
+
+test_that(".require_hdf5r errors when hdf5r is unavailable", {
+  local_mocked_bindings(
+    requireNamespace = function(pkg, quietly = TRUE) {
+      if (identical(pkg, "hdf5r")) return(FALSE)
+      base::requireNamespace(pkg, quietly = quietly)
+    },
+    .package = "base"
+  )
+  expect_error(
+    delarr:::.require_hdf5r(),
+    "Package 'hdf5r' is required for HDF5 backends"
+  )
+})

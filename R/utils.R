@@ -189,7 +189,7 @@ safe_scale_matrix <- function(x, dim, center, scale, na.rm = FALSE) {
 # ---- N-d axis utilities ------------------------------------------------------
 
 #' Convert legacy dim name to integer axis
-#' @keywords internal
+#' @noRd
 dim_to_axis <- function(dim) {
   if (is.numeric(dim)) return(as.integer(dim))
   switch(dim, rows = 1L, cols = 2L,
@@ -197,7 +197,7 @@ dim_to_axis <- function(dim) {
 }
 
 #' Compute means along an axis (2D fast path + N-d fallback)
-#' @keywords internal
+#' @noRd
 axis_means <- function(x, axis, na.rm = FALSE) {
   axis <- as.integer(axis)
   if (is.matrix(x)) {
@@ -208,7 +208,7 @@ axis_means <- function(x, axis, na.rm = FALSE) {
 }
 
 #' Compute sds along an axis (2D fast path + N-d fallback)
-#' @keywords internal
+#' @noRd
 axis_sds <- function(x, axis, na.rm = FALSE) {
   axis <- as.integer(axis)
   if (is.matrix(x)) {
@@ -219,7 +219,7 @@ axis_sds <- function(x, axis, na.rm = FALSE) {
 }
 
 #' Compute sums along an axis (2D fast path + N-d fallback)
-#' @keywords internal
+#' @noRd
 axis_sums <- function(x, axis, na.rm = FALSE) {
   axis <- as.integer(axis)
   if (is.matrix(x) && axis == 1L) return(rowSums(x, na.rm = na.rm))
@@ -228,13 +228,13 @@ axis_sums <- function(x, axis, na.rm = FALSE) {
 }
 
 #' Sweep along an axis (generalised sweep)
-#' @keywords internal
+#' @noRd
 axis_sweep <- function(x, axis, stats, FUN = "-") {
   sweep(x, MARGIN = as.integer(axis), STATS = stats, FUN = FUN)
 }
 
 #' Center along an axis
-#' @keywords internal
+#' @noRd
 axis_center <- function(x, axis, na.rm = FALSE) {
   axis <- as.integer(axis)
   if (is.matrix(x)) {
@@ -246,7 +246,7 @@ axis_center <- function(x, axis, na.rm = FALSE) {
 }
 
 #' Scale (and optionally center) along an axis
-#' @keywords internal
+#' @noRd
 axis_scale <- function(x, axis, center = TRUE, scale = TRUE, na.rm = FALSE) {
   axis <- as.integer(axis)
   if (is.matrix(x)) {
@@ -268,7 +268,7 @@ axis_scale <- function(x, axis, center = TRUE, scale = TRUE, na.rm = FALSE) {
 }
 
 #' Detrend along an axis
-#' @keywords internal
+#' @noRd
 axis_detrend <- function(x, axis, degree) {
   axis <- as.integer(axis)
   if (is.matrix(x)) {
@@ -299,7 +299,7 @@ axis_detrend <- function(x, axis, degree) {
 }
 
 #' Extract a sub-array along one axis
-#' @keywords internal
+#' @noRd
 extract_axis_chunk <- function(x, axis, positions) {
   ndim <- length(dim(x))
   idx <- rep(list(TRUE), ndim)
@@ -308,7 +308,7 @@ extract_axis_chunk <- function(x, axis, positions) {
 }
 
 #' Assign a chunk into an array along one axis
-#' @keywords internal
+#' @noRd
 assign_axis_chunk <- function(x, block, axis, positions) {
   ndim <- length(dim(x))
   idx <- rep(list(TRUE), ndim)

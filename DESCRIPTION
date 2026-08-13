@@ -3,10 +3,17 @@ Type: Package
 Title: Lazy Delayed Arrays with Fused Execution
 Version: 0.1.0.9000
 Authors@R: 
-    person(given = "Bradley", family = "Buchsbaum", role = c("aut", "cre"),
-           email = "brad.buchsbaum@gmail.com")
-Description: Provides a lightweight delayed array abstraction with tidy-friendly
-    verbs, expression fusion, and pluggable storage backends.
+    person(given = "Bradley", family = "Buchsbaum",
+           role = c("aut", "cre", "cph"),
+           email = "brad.buchsbaum@gmail.com",
+           comment = c(ORCID = "0000-0002-1108-4866"))
+Description: Provides a lightweight delayed array abstraction for lazy,
+    fused evaluation of multi-dimensional numeric data. Compared with
+    Bioconductor's 'DelayedArray', it offers a small S3 API with tidy-friendly
+    verbs, chunked materialisation, and optional backends for HDF5, memory
+    mapping, and shared-memory parallelism. Expression trees are optimised
+    before streaming evaluation, and results can be written directly to disk
+    without fully materialising arrays in memory.
 URL: https://bbuchsbaum.github.io/delarr/, https://github.com/bbuchsbaum/delarr
 BugReports: https://github.com/bbuchsbaum/delarr/issues
 License: MIT + file LICENSE
@@ -23,6 +30,7 @@ Suggests:
     rmarkdown
 VignetteBuilder: knitr
 Encoding: UTF-8
+Language: en-US
 LazyData: false
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)

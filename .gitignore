@@ -6,6 +6,7 @@
 *.Rproj
 *.html
 .Rcheck/
+.covr_result.rds
 /doc/
 /Meta/
 # pkgdown site is built and published to the gh-pages branch by CI; never

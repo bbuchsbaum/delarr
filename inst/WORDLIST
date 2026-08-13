@@ -1,8 +1,13 @@
+ALTREP
 centre
 DelayedArray
+Bioconductor's
+backends
 detrend
 Detrend
 finalised
+generalised
+gzip
 HDF
 materialisation
 Materialise
@@ -10,6 +15,7 @@ materialised
 materialises
 materialising
 mmap
+ndim
 Pipelined
 pluggable
 README
@@ -18,3 +24,6 @@ realised
 realising
 roadmap
 Roadmap
+sds
+sharding
+zscore

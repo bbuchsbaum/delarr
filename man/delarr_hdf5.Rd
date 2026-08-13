@@ -18,23 +18,25 @@ A \code{delarr} that streams data from the HDF5 dataset.
 Uses \code{hdf5r} to lazily read slices from disk on demand.
 }
 \examples{
-# Create a temporary HDF5 file
-tf <- tempfile(fileext = ".h5")
-data <- matrix(1:20, nrow = 4, ncol = 5)
+if (requireNamespace("hdf5r", quietly = TRUE)) {
+  # Create a temporary HDF5 file
+  tf <- tempfile(fileext = ".h5")
+  data <- matrix(1:20, nrow = 4, ncol = 5)
 
-# Write test data
-f <- hdf5r::H5File$new(tf, mode = "w")
-f$create_dataset("X", robj = data)
-f$close_all()
+  # Write test data
+  f <- hdf5r::H5File$new(tf, mode = "w")
+  f$create_dataset("X", robj = data)
+  f$close_all()
 
-# Load as delayed array
-darr <- delarr_hdf5(tf, "X")
-darr
+  # Load as delayed array
+  darr <- delarr_hdf5(tf, "X")
+  darr
 
-# Apply operations and collect
-result <- darr |> d_map(~ .x * 2) |> collect()
-result
+  # Apply operations and collect
+  result <- darr |> d_map(~ .x * 2) |> collect()
+  result
 
-# Clean up
-unlink(tf)
+  # Clean up
+  unlink(tf)
+}
 }

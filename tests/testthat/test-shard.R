@@ -608,3 +608,85 @@ test_that("reduction agreement across pipeline shapes", {
     expect_equal(par_r, seq_r, info = label)
   }
 })
+
+test_that("check_shard_available errors when shard is missing", {
+  local_mocked_bindings(
+    requireNamespace = function(pkg, quietly = TRUE) {
+      if (identical(pkg, "shard")) return(FALSE)
+      base::requireNamespace(pkg, quietly = quietly)
+    },
+    .package = "base"
+  )
+  expect_error(delarr:::check_shard_available(), "The 'shard' package is required")
+})
+
+test_that("shard_writer accepts column-oriented writes without positions", {
+  w <- shard_writer(4, 5)
+  block <- matrix(as.double(1:12), 4, 3)
+  w$write(block, cols = 1:3)
+  expect_equal(w$result()[, 1:3], block)
+  w$close()
+})
+
+test_that("shard_writer fills leading columns when only a block is supplied", {
+  w <- shard_writer(4, 5)
+  block <- matrix(as.double(1:8), 4, 2)
+  w$write(block)
+  expect_equal(w$result()[, 1:2], block)
+  w$close()
+})
+
+test_that("collect_shard col min/max with na.rm merges partial results", {
+  mat <- matrix(
+    c(NA, NA, NA, NA,
+      1, NA, 7, 8,
+      5, 6, NA, 12),
+    nrow = 4,
+    ncol = 3
+  )
+  darr <- delarr_shard(mat)
+  expect_equal(
+    collect_shard(darr |> d_reduce(min, "cols", na.rm = TRUE), workers = 2, chunk_size = 1L),
+    collect(darr |> d_reduce(min, "cols", na.rm = TRUE), chunk_size = 1L)
+  )
+  expect_equal(
+    collect_shard(darr |> d_reduce(max, "cols", na.rm = TRUE), workers = 2, chunk_size = 1L),
+    collect(darr |> d_reduce(max, "cols", na.rm = TRUE), chunk_size = 1L)
+  )
+})
+
+test_that("shard_buffer_type maps storage modes", {
+  expect_equal(delarr:::shard_buffer_type(logical()), "logical")
+  expect_equal(delarr:::shard_buffer_type(1:3), "integer")
+  expect_equal(delarr:::shard_buffer_type(as.double(1:3)), "double")
+})
+
+test_that("collect_shard preserves logical output buffers", {
+  mat <- matrix(as.double(1:20), 4, 5)
+  darr <- delarr_shard(mat)
+  result <- collect_shard(darr > 0, workers = 2)
+  expect_type(result, "logical")
+  expect_identical(result, mat > 0)
+})
+
+test_that("collect_shard materializes non-shard seeds with begin/end hooks", {
+  mat <- matrix(as.double(1:20), 4, 5)
+  tracker <- new.env(parent = emptyenv())
+  tracker$began <- 0L
+  tracker$ended <- 0L
+  seed <- delarr_backend(
+    nrow = 4,
+    ncol = 5,
+    pull = function(rows = NULL, cols = NULL) {
+      rows <- rows %||% seq_len(4)
+      cols <- cols %||% seq_len(5)
+      mat[rows, cols, drop = FALSE]
+    },
+    begin = function() tracker$began <- tracker$began + 1L,
+    end = function() tracker$ended <- tracker$ended + 1L
+  )
+  result <- collect_shard(delarr(seed) |> d_map(~ .x + 1), workers = 2)
+  expect_equal(result, mat + 1)
+  expect_gt(tracker$began, 0L)
+  expect_gt(tracker$ended, 0L)
+})

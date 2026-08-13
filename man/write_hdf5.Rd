@@ -23,15 +23,17 @@ Simple convenience function to write a matrix to an HDF5 dataset. For
 streaming writes during \code{collect()}, use \code{hdf5_writer()} instead.
 }
 \examples{
-# Write a matrix to HDF5
-mat <- matrix(1:20, nrow = 4, ncol = 5)
-tf <- tempfile(fileext = ".h5")
-write_hdf5(mat, tf, "X")
+if (requireNamespace("hdf5r", quietly = TRUE)) {
+  # Write a matrix to HDF5
+  mat <- matrix(1:20, nrow = 4, ncol = 5)
+  tf <- tempfile(fileext = ".h5")
+  write_hdf5(mat, tf, "X")
 
-# Read it back as a delarr
-darr <- delarr_hdf5(tf, "X")
-collect(darr)
+  # Read it back as a delarr
+  darr <- delarr_hdf5(tf, "X")
+  collect(darr)
 
-# Clean up
-unlink(tf)
+  # Clean up
+  unlink(tf)
+}
 }

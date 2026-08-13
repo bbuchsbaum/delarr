@@ -339,6 +339,28 @@ test_that("N-d collect rejects writer-style into targets", {
   )
 })
 
+test_that("N-d parallel collect matches sequential execution", {
+  skip_on_os("windows")
+  arr <- array(as.double(1:60), dim = c(3, 4, 5))
+  pipeline <- delarr(arr) |> d_map(~ .x + 1)
+  seq_out <- collect(pipeline, chunk_size = 2L, chunk_margin = 3L, parallel = FALSE)
+  par_out <- collect(
+    pipeline,
+    chunk_size = 2L,
+    chunk_margin = 3L,
+    parallel = TRUE,
+    workers = 2L
+  )
+  expect_equal(par_out, seq_out)
+})
+
+test_that("N-d collect materializes delarr rhs for paired ops", {
+  arr <- array(as.double(1:24), dim = c(2, 3, 4))
+  rhs <- array(as.double(25:48), dim = c(2, 3, 4))
+  pipeline <- d_map2(delarr(arr), delarr(rhs), ~ .x + .y)
+  expect_equal(collect(pipeline, chunk_size = 2L, chunk_margin = 3L), arr + rhs)
+})
+
 # ---- axis-based verb tests ----------------------------------------------------
 
 test_that("d_reduce with axis= on 3D array", {

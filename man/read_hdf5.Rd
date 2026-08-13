@@ -19,12 +19,14 @@ Simple convenience function to read a matrix from an HDF5 dataset. For
 lazy/streaming access, use \code{delarr_hdf5()} instead.
 }
 \examples{
-# Write and read back
-mat <- matrix(1:20, nrow = 4, ncol = 5)
-tf <- tempfile(fileext = ".h5")
-write_hdf5(mat, tf, "X")
-read_hdf5(tf, "X")
+if (requireNamespace("hdf5r", quietly = TRUE)) {
+  # Write and read back
+  mat <- matrix(1:20, nrow = 4, ncol = 5)
+  tf <- tempfile(fileext = ".h5")
+  write_hdf5(mat, tf, "X")
+  read_hdf5(tf, "X")
 
-# Clean up
-unlink(tf)
+  # Clean up
+  unlink(tf)
+}
 }

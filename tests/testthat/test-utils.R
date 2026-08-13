@@ -142,3 +142,97 @@ test_that("safe_min/max handle NA with na.rm", {
   expect_equal(safe_max(mat, "rows", na.rm = TRUE),
                c(max(1, 4), 5, 3))
 })
+
+test_that("normalize_chunk_margin resolves character and numeric axes", {
+  expect_equal(delarr:::normalize_chunk_margin("cols", 3), "cols")
+  expect_equal(delarr:::normalize_chunk_margin("rows", 2), "rows")
+  expect_equal(delarr:::normalize_chunk_margin(3L, 4), 3L)
+  expect_equal(delarr:::normalize_chunk_margin(1L, 2), "rows")
+})
+
+test_that("normalize_chunk_margin rejects multi-axis numeric input", {
+  expect_error(
+    delarr:::normalize_chunk_margin(c(1L, 2L), 4),
+    "single axis"
+  )
+})
+
+test_that("resolve_chunk_axis validates character length and multi-axis input", {
+  expect_error(
+    delarr:::resolve_chunk_axis(c("rows", "cols"), 3),
+    "single character value"
+  )
+  expect_error(
+    delarr:::resolve_chunk_axis(c(1L, 2L), 4),
+    "single axis"
+  )
+})
+
+test_that("infer_nd_chunk_size uses rows/cols hints and default fallback", {
+  seed <- list(chunk_hint = list(rows = 2L, cols = 3L))
+  expect_equal(
+    delarr:::infer_nd_chunk_size(seed, c(5L, 6L, 7L), 1L, NULL),
+    2L
+  )
+  expect_equal(
+    delarr:::infer_nd_chunk_size(seed, c(5L, 6L, 7L), 2L, NULL),
+    3L
+  )
+
+  seed_no_hint <- list(chunk_hint = NULL)
+  fallback <- delarr:::infer_nd_chunk_size(seed_no_hint, c(100L, 4L), 1L, NULL)
+  expect_true(fallback >= 1L && fallback <= 100L)
+})
+
+test_that("safe_mean/sd/min/max fall back when matrixStats is unavailable", {
+  local_mocked_bindings(
+    requireNamespace = function(pkg, quietly = TRUE) {
+      if (identical(pkg, "matrixStats")) return(FALSE)
+      base::requireNamespace(pkg, quietly = quietly)
+    },
+    .package = "base"
+  )
+  mat <- matrix(as.double(1:12), 3, 4)
+  expect_equal(delarr:::safe_mean(mat, "rows"), rowMeans(mat))
+  expect_equal(delarr:::safe_mean(mat, "cols"), colMeans(mat))
+  expect_equal(delarr:::safe_sd(mat, "rows"), apply(mat, 1, sd))
+  expect_equal(delarr:::safe_sd(mat, "cols"), apply(mat, 2, sd))
+  expect_equal(delarr:::safe_min(mat, "rows"), apply(mat, 1, min))
+  expect_equal(delarr:::safe_max(mat, "cols"), apply(mat, 2, max))
+})
+
+test_that("axis utilities use N-d apply paths for arrays", {
+  arr <- array(as.double(1:24), dim = c(2, 3, 4))
+  expect_equal(
+    delarr:::axis_sds(arr, 3L),
+    apply(arr, 3, stats::sd)
+  )
+  expect_equal(
+    delarr:::axis_sweep(arr, 2L, apply(arr, 2, mean), FUN = "-"),
+    sweep(arr, 2, apply(arr, 2, mean), "-")
+  )
+  scaled <- delarr:::axis_scale(arr, 3L, center = TRUE, scale = TRUE)
+  expect_equal(dim(scaled), dim(arr))
+  slice_means <- apply(scaled, 3, mean)
+  expect_true(all(abs(slice_means) < 1e-10))
+})
+
+test_that("axis_scale returns unchanged arrays when center and scale are FALSE", {
+  arr <- array(as.double(1:24), dim = c(2, 3, 4))
+  expect_identical(
+    delarr:::axis_scale(arr, 2L, center = FALSE, scale = FALSE),
+    arr
+  )
+})
+
+test_that("infer_nd_chunk_size uses adaptive fallback for 1D extents", {
+  seed <- list(chunk_hint = NULL)
+  expect_equal(
+    delarr:::infer_nd_chunk_size(seed, c(100L), 1L, NULL, target_bytes = 200),
+    min(100L, floor(200 / 8))
+  )
+  expect_equal(
+    delarr:::infer_nd_chunk_size(seed, c(100L), 1L, NULL),
+    min(100L, floor((8 * 16384) / 8))
+  )
+})

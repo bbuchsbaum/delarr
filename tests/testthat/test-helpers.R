@@ -46,6 +46,21 @@ test_that("where_mask coerces non-logical mask", {
   expect_equal(result[mat <= 3], rep(0, sum(mat <= 3)))
 })
 
+test_that("where_mask preserves dimensions when coercing matrix masks", {
+  mat <- matrix(1:6, 2, 3)
+  result <- where_mask(
+    mat,
+    function(x) {
+      mask <- matrix(as.integer(x > 3), nrow = nrow(x), ncol = ncol(x))
+      storage.mode(mask) <- "integer"
+      mask
+    },
+    fill = 0
+  )
+  expect_equal(result[mat <= 3], rep(0, sum(mat <= 3)))
+  expect_equal(result[mat > 3], mat[mat > 3])
+})
+
 test_that("where_mask rejects non-scalar fill", {
   mat <- matrix(1:6, 2, 3)
   expect_error(where_mask(mat, function(x) x > 0, fill = c(1, 2)),

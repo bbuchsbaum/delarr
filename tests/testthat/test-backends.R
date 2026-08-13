@@ -176,6 +176,49 @@ test_that("delarr_hdf5 pull functions work before collect opens the file", {
   )
 })
 
+test_that("delarr_hdf5 begin hook is idempotent", {
+  skip_if_not_installed("hdf5r")
+  tf <- tempfile(fileext = ".h5")
+  on.exit(unlink(tf), add = TRUE)
+  mat <- matrix(as.double(1:20), 4, 5)
+  f <- hdf5r::H5File$new(tf, mode = "w")
+  f$create_dataset("X", robj = mat)
+  f$close_all()
+
+  darr <- delarr_hdf5(tf, "X")
+  darr$seed$begin()
+  darr$seed$begin()
+  expect_equal(darr$seed$pull(rows = 1:2, cols = 1:3), mat[1:2, 1:3])
+  darr$seed$end()
+})
+
+test_that("delarr_mmap pull works before begin opens mapping", {
+  skip_if_not_installed("mmap")
+  mat <- matrix(as.double(1:20), 4, 5)
+  tf <- tempfile()
+  on.exit(unlink(tf), add = TRUE)
+  writeBin(as.double(mat), tf)
+
+  darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
+  expect_equal(darr$seed$pull(rows = 2:3, cols = 2:4), mat[2:3, 2:4])
+  expect_equal(collect(darr), mat)
+})
+
+test_that("delarr_mmap begin and end manage mapping lifecycle", {
+  skip_if_not_installed("mmap")
+  mat <- matrix(as.double(1:20), 4, 5)
+  tf <- tempfile()
+  on.exit(unlink(tf), add = TRUE)
+  writeBin(as.double(mat), tf)
+
+  darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
+  darr$seed$begin()
+  darr$seed$begin()
+  expect_equal(darr$seed$pull(rows = 1:2, cols = 1:2), mat[1:2, 1:2])
+  darr$seed$end()
+  expect_equal(darr$seed$pull(rows = 3:4, cols = 4:5), mat[3:4, 4:5])
+})
+
 test_that("delarr_mmap reads binary data correctly", {
   skip_if_not_installed("mmap")
   mat <- matrix(as.double(1:20), 4, 5)
@@ -223,6 +266,20 @@ test_that("delarr_mmap validates file too small", {
   writeBin(as.double(1:4), tf)
   expect_error(delarr_mmap(tf, nrow = 10, ncol = 10),
                "File too small")
+})
+
+test_that("delarr_mmap errors when mmap is unavailable", {
+  local_mocked_bindings(
+    requireNamespace = function(pkg, quietly = TRUE) {
+      if (identical(pkg, "mmap")) return(FALSE)
+      base::requireNamespace(pkg, quietly = quietly)
+    },
+    .package = "base"
+  )
+  expect_error(
+    delarr_mmap(tempfile(), nrow = 2, ncol = 2),
+    "Package 'mmap' is required for delarr_mmap"
+  )
 })
 
 test_that("delarr_mmap slicing works", {

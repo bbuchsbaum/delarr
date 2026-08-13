@@ -162,6 +162,104 @@ test_that("d_reduce_many simplify=FALSE returns list", {
   expect_equal(result$s, rowSums(mat))
 })
 
+test_that("d_reduce_many validates fns argument", {
+  darr <- delarr(matrix(1:6, 2, 3))
+  expect_error(d_reduce_many(darr, list(), dim = "rows"), "non-empty list")
+})
+
+test_that("d_reduce_many preserves rownames when simplifying", {
+  mat <- matrix(
+    as.double(1:12),
+    3,
+    4,
+    dimnames = list(c("r1", "r2", "r3"), NULL)
+  )
+  result <- d_reduce_many(
+    delarr(mat),
+    list(s = sum, m = mean),
+    dim = "rows"
+  )
+  expect_equal(rownames(result), rownames(mat))
+})
+
+test_that("d_reduce_many falls back when rhs delarr requires full evaluation", {
+  lhs <- matrix(as.double(1:20), 4, 5)
+  rhs <- matrix(as.double(21:40), 4, 5)
+  pipeline <- d_map2(delarr(lhs), delarr(rhs) |> d_center("rows"), ~ .x + .y)
+  result <- d_reduce_many(
+    pipeline,
+    fns = list(sum = sum, mean = mean),
+    dim = "rows",
+    chunk_size = 2L
+  )
+  materialized <- collect(pipeline)
+  expect_equal(result[, "sum"], rowSums(materialized))
+  expect_equal(result[, "mean"], rowMeans(materialized))
+})
+
+test_that("d_reduce_many streams col extrema with na.rm across chunks", {
+  mat <- matrix(
+    c(NA, NA, NA, NA,
+      1, NA, 7, 8,
+      5, 6, NA, 12),
+    nrow = 4,
+    ncol = 3
+  )
+  result <- d_reduce_many(
+    delarr(mat),
+    fns = list(min = min, max = max),
+    dim = "cols",
+    na.rm = TRUE,
+    chunk_size = 1L
+  )
+  expect_equal(result[, "min"], c(NA_real_, 1, 5))
+  expect_equal(result[, "max"], c(NA_real_, 8, 12))
+})
+
+test_that("d_reduce_many streams paired delarr rhs with begin/end hooks", {
+  lhs <- matrix(as.double(1:20), 4, 5)
+  rhs <- matrix(as.double(21:40), 4, 5)
+  tracker <- new.env(parent = emptyenv())
+  tracker$began <- 0L
+  tracker$ended <- 0L
+  rhs_seed <- delarr_backend(
+    nrow = 4,
+    ncol = 5,
+    pull = function(rows = NULL, cols = NULL) {
+      rows <- rows %||% seq_len(4)
+      cols <- cols %||% seq_len(5)
+      rhs[rows, cols, drop = FALSE]
+    },
+    begin = function() tracker$began <- tracker$began + 1L,
+    end = function() tracker$ended <- tracker$ended + 1L
+  )
+  pipeline <- d_map2(delarr(lhs), delarr(rhs_seed), ~ .x + .y)
+  result <- d_reduce_many(
+    pipeline,
+    fns = list(sum = sum),
+    dim = "rows",
+    chunk_size = 2L
+  )
+  expect_equal(as.numeric(result), rowSums(lhs + rhs))
+  expect_gt(tracker$began, 0L)
+  expect_gt(tracker$ended, 0L)
+})
+
+test_that("d_reduce_many precomputes matrix rhs slices for incompatible chunks", {
+  lhs <- matrix(as.double(1:20), 4, 5)
+  rhs <- matrix(as.double(21:40), 4, 5)
+  pipeline <- d_map2(delarr(lhs), delarr(rhs), ~ .x + .y)
+  precomputed <- collect(pipeline)
+  result <- d_reduce_many(
+    pipeline,
+    fns = list(sum = sum, mean = mean),
+    dim = "cols",
+    chunk_size = 1L
+  )
+  expect_equal(result[, "sum"], colSums(precomputed))
+  expect_equal(result[, "mean"], colMeans(precomputed))
+})
+
 # ---- d_transpose / d_aperm ---------------------------------------------------
 
 test_that("d_transpose returns correct transposed matrix", {

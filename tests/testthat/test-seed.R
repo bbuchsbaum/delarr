@@ -175,6 +175,23 @@ test_that("delarr_seed_nd validates dimensions and pull function", {
   )
 })
 
+test_that("pull_seed_nd delegates to pull for 2D seeds without pull_nd", {
+  mat <- matrix(as.double(1:6), 2, 3)
+  seed <- delarr_seed(
+    nrow = 2,
+    ncol = 3,
+    pull = function(rows = NULL, cols = NULL) {
+      rows <- rows %||% seq_len(2)
+      cols <- cols %||% seq_len(3)
+      mat[rows, cols, drop = FALSE]
+    }
+  )
+  expect_equal(
+    pull_seed_nd(seed, list(1:2, 2:3)),
+    mat[1:2, 2:3, drop = FALSE]
+  )
+})
+
 test_that("pull_seed_nd validates index length and result shape", {
   arr <- array(seq_len(24), dim = c(2, 3, 4))
   seed <- delarr_seed_nd(

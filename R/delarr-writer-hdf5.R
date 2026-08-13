@@ -22,17 +22,19 @@
 #' @return The path to the HDF5 file (invisibly).
 #' @export
 #' @examples
-#' # Write a matrix to HDF5
-#' mat <- matrix(1:20, nrow = 4, ncol = 5)
-#' tf <- tempfile(fileext = ".h5")
-#' write_hdf5(mat, tf, "X")
+#' if (requireNamespace("hdf5r", quietly = TRUE)) {
+#'   # Write a matrix to HDF5
+#'   mat <- matrix(1:20, nrow = 4, ncol = 5)
+#'   tf <- tempfile(fileext = ".h5")
+#'   write_hdf5(mat, tf, "X")
 #'
-#' # Read it back as a delarr
-#' darr <- delarr_hdf5(tf, "X")
-#' collect(darr)
+#'   # Read it back as a delarr
+#'   darr <- delarr_hdf5(tf, "X")
+#'   collect(darr)
 #'
-#' # Clean up
-#' unlink(tf)
+#'   # Clean up
+#'   unlink(tf)
+#' }
 write_hdf5 <- function(x, path, dataset, compression = 4L) {
   .require_hdf5r()
   if (!is.matrix(x)) {
@@ -63,14 +65,16 @@ write_hdf5 <- function(x, path, dataset, compression = 4L) {
 #' @return The matrix stored in the dataset.
 #' @export
 #' @examples
-#' # Write and read back
-#' mat <- matrix(1:20, nrow = 4, ncol = 5)
-#' tf <- tempfile(fileext = ".h5")
-#' write_hdf5(mat, tf, "X")
-#' read_hdf5(tf, "X")
+#' if (requireNamespace("hdf5r", quietly = TRUE)) {
+#'   # Write and read back
+#'   mat <- matrix(1:20, nrow = 4, ncol = 5)
+#'   tf <- tempfile(fileext = ".h5")
+#'   write_hdf5(mat, tf, "X")
+#'   read_hdf5(tf, "X")
 #'
-#' # Clean up
-#' unlink(tf)
+#'   # Clean up
+#'   unlink(tf)
+#' }
 read_hdf5 <- function(path, dataset) {
   .require_hdf5r()
   f <- hdf5r::H5File$new(path, mode = "r")
@@ -98,29 +102,31 @@ read_hdf5 <- function(path, dataset) {
 #'   by `collect()`.
 #' @export
 #' @examples
-#' # Create source data in a temp HDF5 file
-#' tf_in <- tempfile(fileext = ".h5")
-#' data <- matrix(1:20, nrow = 4, ncol = 5)
-#' f <- hdf5r::H5File$new(tf_in, mode = "w")
-#' f$create_dataset("X", robj = data)
-#' f$close_all()
+#' if (requireNamespace("hdf5r", quietly = TRUE)) {
+#'   # Create source data in a temp HDF5 file
+#'   tf_in <- tempfile(fileext = ".h5")
+#'   data <- matrix(1:20, nrow = 4, ncol = 5)
+#'   f <- hdf5r::H5File$new(tf_in, mode = "w")
+#'   f$create_dataset("X", robj = data)
+#'   f$close_all()
 #'
-#' # Load, transform, and stream to output file
-#' darr <- delarr_hdf5(tf_in, "X")
-#' transformed <- darr |> d_center(dim = "cols")
+#'   # Load, transform, and stream to output file
+#'   darr <- delarr_hdf5(tf_in, "X")
+#'   transformed <- darr |> d_center(dim = "cols")
 #'
-#' tf_out <- tempfile(fileext = ".h5")
-#' writer <- hdf5_writer(tf_out, "result", ncol = ncol(transformed), compression = 4L)
-#' collect(transformed, into = writer)
+#'   tf_out <- tempfile(fileext = ".h5")
+#'   writer <- hdf5_writer(tf_out, "result", ncol = ncol(transformed), compression = 4L)
+#'   collect(transformed, into = writer)
 #'
-#' # Verify output
-#' g <- hdf5r::H5File$new(tf_out, mode = "r")
-#' result <- g[["result"]]$read()
-#' g$close_all()
-#' result
+#'   # Verify output
+#'   g <- hdf5r::H5File$new(tf_out, mode = "r")
+#'   result <- g[["result"]]$read()
+#'   g$close_all()
+#'   result
 #'
-#' # Clean up
-#' unlink(c(tf_in, tf_out))
+#'   # Clean up
+#'   unlink(c(tf_in, tf_out))
+#' }
 hdf5_writer <- function(path, dataset, ncol, chunk = c(128L, 4096L), compression = 4L) {
   .require_hdf5r()
   if (length(chunk) != 2L) {
