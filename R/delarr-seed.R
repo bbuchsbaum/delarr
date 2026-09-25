@@ -102,7 +102,10 @@ pull_seed <- function(seed, rows = NULL, cols = NULL) {
   if (is.environment(x) || is.function(x) || typeof(x) == "externalptr") {
     return(TRUE)
   }
-  if (is.pairlist(x)) {
+  if (any(vapply(attributes(x), .provider_has_runtime_state, logical(1)))) {
+    return(TRUE)
+  }
+  if (is.pairlist(x) || is.call(x) || is.expression(x)) {
     return(any(vapply(as.list(x), .provider_has_runtime_state, logical(1))))
   }
   if (is.list(x)) {
@@ -165,13 +168,15 @@ delarr_provider_pull.array <- function(provider, indices, ...) {
 #' @return A `delarr_provider_seed` inheriting from `delarr_seed`.
 #' @export
 delarr_provider_seed <- function(provider, dims, chunk_hint = NULL, dimnames = NULL) {
-  dims <- as.integer(dims)
-  if (length(dims) < 2L || anyNA(dims) || any(dims < 0L)) {
+  if (!is.numeric(dims) || is.complex(dims) || length(dims) < 2L ||
+      anyNA(dims) || any(!is.finite(dims)) || any(dims < 0) ||
+      any(dims > .Machine$integer.max) || any(dims != trunc(dims))) {
     stop(
       "dims must be an integer vector of length >= 2 with non-negative values",
       call. = FALSE
     )
   }
+  dims <- as.integer(dims)
   if (.provider_has_runtime_state(provider)) {
     stop(
       "provider descriptors cannot contain functions, environments, or external pointers",

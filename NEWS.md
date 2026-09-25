@@ -1,6 +1,10 @@
-# delarr (development version)
+# delarr 0.2.0
 
 ## Bug fixes
+
+* Provider descriptors now reject runtime state hidden in attributes or language
+  objects. Provider dimensions must be finite, non-negative, whole numbers within
+  the integer range; lossy coercion no longer changes declared dimensions.
 
 * Unary `-` and `+` on a `delarr` (e.g. `-x`) previously errored because the
   `Ops` group generic was called with `e2` missing. They now stay lazy and
@@ -11,6 +15,10 @@
   in double precision.
 
 ## New features
+
+* Added reconstructible provider seeds. Storage packages can now keep plain,
+  serializable descriptors in lazy plans and supply execution-time reads via
+  `delarr_provider_pull()` without embedding closures or live handles.
 
 * Added a `Math` group generic method for `delarr`, so `sqrt()`, `abs()`,
   `exp()`, `log()`, `round()`, the trig functions, and the other elementwise
@@ -29,10 +37,6 @@
   `options(delarr.warn_ambiguous_broadcast = FALSE)`.
 
 # delarr 0.1.0
-
-* Added reconstructible provider seeds. Storage packages can now keep plain,
-  serializable descriptors in lazy plans and supply execution-time reads via
-  `delarr_provider_pull()` without embedding closures or live handles.
 
 First public release.
 
