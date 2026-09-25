@@ -17,6 +17,13 @@ reference:
       - collect
       - block_apply
 
+  - title: Storage providers
+    desc: Serializable provider descriptors for storage packages.
+    contents:
+      - delarr_provider
+      - delarr_provider_seed
+      - delarr_provider_pull
+
   - title: Backends
     contents:
       - delarr_mem
@@ -65,6 +72,7 @@ reference:
   - title: S3 Methods
     contents:
       - Ops.delarr
+      - Math.delarr
       - as.matrix.delarr
       - colMeans2.delarr
       - dim.delarr
