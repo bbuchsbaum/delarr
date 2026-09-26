@@ -1,7 +1,8 @@
 # Arithmetic and comparison operators for `delarr`
 
 Supports elementwise operations between delayed matrices or between a
-delayed matrix and scalars/matrices.
+delayed matrix and scalars/matrices. The unary `+`/`-` forms (e.g. `-x`)
+are also handled and stay lazy.
 
 ## Usage
 
@@ -14,7 +15,8 @@ Ops(e1, e2)
 
 - e1, e2:
 
-  Operands supplied by the R math group generics.
+  Operands supplied by the R math group generics. For the unary `+`/`-`
+  forms `e2` is missing.
 
 ## Value
 

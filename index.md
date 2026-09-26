@@ -10,13 +10,17 @@ HDF5 writer.
 
 ## Installation
 
-The package is under active development. Clone the repository and use
-[`pkgload::load_all()`](https://pkgload.r-lib.org/reference/load_all.html)
-or `devtools::install()` to experiment with the API.
+You can install the development version from GitHub with:
 
 ``` r
-# install.packages("pkgload")
-pkgload::load_all(".")
+# install.packages("remotes")
+remotes::install_github("bbuchsbaum/delarr")
+```
+
+Once accepted on CRAN:
+
+``` r
+install.packages("delarr")
 ```
 
 ## Getting started

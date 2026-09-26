@@ -82,7 +82,7 @@ seed
 #>     cols <- cols %||% seq_len(4)
 #>     data[rows, cols, drop = FALSE]
 #> }
-#> <environment: 0x55f3e6f05ad0>
+#> <environment: 0x55625fcb8160>
 #> 
 #> $chunk_hint
 #> NULL

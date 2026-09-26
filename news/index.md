@@ -1,6 +1,42 @@
 # Changelog
 
-## delarr (development version)
+## delarr 0.2.0
+
+### Bug fixes
+
+- Provider descriptors now reject runtime state hidden in attributes or
+  language objects. Provider dimensions must be finite, non-negative,
+  whole numbers within the integer range; lossy coercion no longer
+  changes declared dimensions.
+
+- Unary `-` and `+` on a `delarr` (e.g. `-x`) previously errored because
+  the `Ops` group generic was called with `e2` missing. They now stay
+  lazy and match their base-matrix counterparts.
+
+- The streaming full-matrix `mean` reduction divided by
+  `n_rows * n_cols` computed in integer arithmetic, which overflowed to
+  `NA` for matrices with more than `.Machine$integer.max` elements. The
+  element count is now computed in double precision.
+
+### New features
+
+- Added reconstructible provider seeds. Storage packages can now keep
+  plain, serializable descriptors in lazy plans and supply
+  execution-time reads via
+  [`delarr_provider_pull()`](https://bbuchsbaum.github.io/delarr/reference/delarr_provider_pull.md)
+  without embedding closures or live handles.
+
+- Added a `Math` group generic method for `delarr`, so
+  [`sqrt()`](https://rdrr.io/r/base/MathFun.html),
+  [`abs()`](https://rdrr.io/r/base/MathFun.html),
+  [`exp()`](https://rdrr.io/r/base/Log.html),
+  [`log()`](https://rdrr.io/r/base/Log.html),
+  [`round()`](https://rdrr.io/r/base/Round.html), the trig functions,
+  and the other elementwise math generics work lazily (with extra
+  arguments such as `round(x, 2)` and `log(x, base = 2)` forwarded).
+  Non-elementwise cumulative generics
+  ([`cumsum()`](https://rdrr.io/r/base/cumsum.html) and friends) raise
+  an informative error.
 
 ### Broadcasting
 
@@ -13,6 +49,8 @@
   the warning with `options(delarr.warn_ambiguous_broadcast = FALSE)`.
 
 ## delarr 0.1.0
+
+CRAN release: 2026-06-30
 
 First public release.
 

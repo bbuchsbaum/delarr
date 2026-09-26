@@ -42,25 +42,21 @@ or wrap an in-memory array with
 ## Examples
 
 ``` r
-# Create a binary file with matrix data
-mat <- matrix(1:20, nrow = 4, ncol = 5)
-tf <- tempfile()
-writeBin(as.double(mat), tf)
+if (requireNamespace("mmap", quietly = TRUE)) {
+  # Create a binary file with matrix data
+  mat <- matrix(1:20, nrow = 4, ncol = 5)
+  tf <- tempfile()
+  writeBin(as.double(mat), tf)
 
-# Load as delayed array
-darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
-darr
-#> <delarr> 4 x 5 lazy
+  # Load as delayed array
+  darr <- delarr_mmap(tf, nrow = 4, ncol = 5)
+  darr
 
-# Apply operations and collect
-result <- darr |> d_map(~ .x * 2) |> collect()
-result
-#>      [,1] [,2] [,3] [,4] [,5]
-#> [1,]    2   10   18   26   34
-#> [2,]    4   12   20   28   36
-#> [3,]    6   14   22   30   38
-#> [4,]    8   16   24   32   40
+  # Apply operations and collect
+  result <- darr |> d_map(~ .x * 2) |> collect()
+  result
 
-# Clean up
-unlink(tf)
+  # Clean up
+  unlink(tf)
+}
 ```

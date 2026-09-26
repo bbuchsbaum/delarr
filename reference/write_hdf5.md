@@ -38,20 +38,17 @@ The path to the HDF5 file (invisibly).
 ## Examples
 
 ``` r
-# Write a matrix to HDF5
-mat <- matrix(1:20, nrow = 4, ncol = 5)
-tf <- tempfile(fileext = ".h5")
-write_hdf5(mat, tf, "X")
+if (requireNamespace("hdf5r", quietly = TRUE)) {
+  # Write a matrix to HDF5
+  mat <- matrix(1:20, nrow = 4, ncol = 5)
+  tf <- tempfile(fileext = ".h5")
+  write_hdf5(mat, tf, "X")
 
-# Read it back as a delarr
-darr <- delarr_hdf5(tf, "X")
-collect(darr)
-#>      [,1] [,2] [,3] [,4] [,5]
-#> [1,]    1    5    9   13   17
-#> [2,]    2    6   10   14   18
-#> [3,]    3    7   11   15   19
-#> [4,]    4    8   12   16   20
+  # Read it back as a delarr
+  darr <- delarr_hdf5(tf, "X")
+  collect(darr)
 
-# Clean up
-unlink(tf)
+  # Clean up
+  unlink(tf)
+}
 ```

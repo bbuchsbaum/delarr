@@ -21,6 +21,17 @@
 - [`block_apply()`](https://bbuchsbaum.github.io/delarr/reference/block_apply.md)
   : Apply a function to streamed matrix blocks
 
+## Storage providers
+
+Serializable provider descriptors for storage packages.
+
+- [`delarr_provider()`](https://bbuchsbaum.github.io/delarr/reference/delarr_provider.md)
+  : Create a delayed array from a reconstructible provider
+- [`delarr_provider_seed()`](https://bbuchsbaum.github.io/delarr/reference/delarr_provider_seed.md)
+  : Construct a reconstructible provider seed
+- [`delarr_provider_pull()`](https://bbuchsbaum.github.io/delarr/reference/delarr_provider_pull.md)
+  : Pull an array slice from a reconstructible provider
+
 ## Backends
 
 - [`delarr_mem()`](https://bbuchsbaum.github.io/delarr/reference/delarr_mem.md)
@@ -115,6 +126,11 @@
   :
 
   Arithmetic and comparison operators for `delarr`
+
+- [`Math(`*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/Math.delarr.md)
+  :
+
+  Elementwise math functions for `delarr`
 
 - [`as.matrix(`*`<delarr>`*`)`](https://bbuchsbaum.github.io/delarr/reference/as.matrix.delarr.md)
   : Materialise a delayed matrix as a base matrix

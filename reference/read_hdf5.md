@@ -28,17 +28,14 @@ The matrix stored in the dataset.
 ## Examples
 
 ``` r
-# Write and read back
-mat <- matrix(1:20, nrow = 4, ncol = 5)
-tf <- tempfile(fileext = ".h5")
-write_hdf5(mat, tf, "X")
-read_hdf5(tf, "X")
-#>      [,1] [,2] [,3] [,4] [,5]
-#> [1,]    1    5    9   13   17
-#> [2,]    2    6   10   14   18
-#> [3,]    3    7   11   15   19
-#> [4,]    4    8   12   16   20
+if (requireNamespace("hdf5r", quietly = TRUE)) {
+  # Write and read back
+  mat <- matrix(1:20, nrow = 4, ncol = 5)
+  tf <- tempfile(fileext = ".h5")
+  write_hdf5(mat, tf, "X")
+  read_hdf5(tf, "X")
 
-# Clean up
-unlink(tf)
+  # Clean up
+  unlink(tf)
+}
 ```
