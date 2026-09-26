@@ -24,3 +24,7 @@
 ^manual_cards\.jsonl$
 ^cran-comments\.md$
 ^CRAN-SUBMISSION$
+
+# Local release evidence and check artifacts
+^\.mote($|/)
+^\.\.Rcheck$

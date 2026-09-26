@@ -13,3 +13,7 @@
 # committed to the default branch (a stray tracked docs/ file breaks the
 # CI clean_site() check).
 docs/
+
+# Local release evidence
+.mote/local/
+.mote/tmp/

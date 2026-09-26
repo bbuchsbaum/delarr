@@ -1,43 +1,46 @@
 ## Submission
 
-This is a new submission of delarr (version 0.1.0).
+This is an update of delarr from 0.1.0 to 0.2.0.
 
-delarr provides a lightweight delayed-array abstraction with lazy, fused
-execution and a tidy-friendly API. It has a single hard dependency (rlang).
-All heavier functionality is optional and used conditionally via Suggests:
-HDF5-backed arrays (hdf5r), memory-mapped arrays (mmap), and zero-copy
-parallel execution (shard). The package degrades gracefully and passes
-R CMD check when these Suggests are not installed.
+The release adds reconstructible provider seeds (`delarr_provider_seed()`,
+`delarr_provider_pull()`) so storage packages can keep plain, serializable
+descriptors in lazy plans, plus a `Math` group generic. It also fixes unary
+`-`/`+` on delayed arrays and tightens provider validation: descriptors
+carrying functions, environments, or external pointers (including inside
+attributes or language objects) are rejected, and fractional, negative,
+non-finite, or out-of-range dimensions now error instead of being silently
+truncated.
+
+delarr has a single hard dependency (rlang). HDF5 (hdf5r), memory-mapped
+(mmap), and shared-memory parallel (shard) backends remain optional via
+Suggests and are used only behind `requireNamespace()` guards.
 
 ## R CMD check results
 
-Local `R CMD check --as-cran` (macOS Sonoma, R 4.5.1): **0 errors | 0 warnings | 1 note**
+Local `R CMD check --as-cran` (macOS Sonoma 14.3, R 4.5.1), tarball SHA-256
+`801722ba292acedb9e181c40549fbe6997d1eca2911f5e93186840ca1fabd569`:
+**0 errors | 0 warnings | 1 note**
 
-* checking CRAN incoming feasibility ... NOTE
-  New submission
+* checking HTML version of manual ... NOTE
+  Skipping checking HTML validation: 'tidy' doesn't look like recent enough
+  HTML Tidy.
 
-win-builder (Windows, R 4.6.1 ucrt, 2026-06-24): **0 errors | 0 warnings | 1 note**
+  This note reflects the local toolchain (outdated HTML Tidy), not the package.
 
-* checking CRAN incoming feasibility ... NOTE
-  New submission
-  Possibly misspelled words in DESCRIPTION: Bioconductor's, HDF, backends
-  (false positives; HDF is in `inst/WORDLIST`)
+CRAN incoming feasibility (remote checks enabled): OK.
+
+The same check with hdf5r, mmap, matrixStats, and shard made unavailable
+(`_R_CHECK_FORCE_SUGGESTS_=false`) gives the same result; the 29 affected tests
+skip cleanly.
 
 ## Test environments
 
-* local: macOS Sonoma, R 4.5.1 — 0 errors, 0 warnings, 1 note (New submission)
-* win-builder: Windows Server 2022, R 4.6.1 (release) — 0 errors, 0 warnings, 1 note; binary built (`delarr_0.1.0.zip`)
-* win-builder: R-devel — submitted 2026-06-24; second email may still be pending
-* GitHub Actions (R-CMD-check): Ubuntu, macOS, Windows — R release and devel (pending CI run after push)
-* rhub: workflow file created locally (`.github/workflows/rhub.yaml`); push to GitHub then run `rhub::rhub_check()`
+* local: macOS Sonoma 14.3, R 4.5.1 — 0 errors, 0 warnings, 1 note (local HTML Tidy)
+* win-builder (release, devel): not yet run for 0.2.0
+* GitHub Actions (Ubuntu, macOS, Windows; release and devel): not yet run for 0.2.0
 
 ## Reverse dependencies
 
-There are no reverse dependencies on CRAN yet.
-
-## Notes for CRAN
-
-* Suggested-package examples (`hdf5r`, `mmap`, `shard`) are wrapped in
-  `requireNamespace()` guards so examples pass when Suggests are absent.
-* `cran-comments.md` is listed in `.Rbuildignore` and is not part of the
-  source tarball.
+There are no reverse dependencies on CRAN. The downstream package fmridataset
+(not on CRAN) was tested against this candidate: 931 assertions across its
+provider, ArraySource, and serialization tests, with no failures.

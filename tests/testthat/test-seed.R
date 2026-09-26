@@ -233,3 +233,34 @@ test_that("pull_seed_nd validates index length and result shape", {
     "expected \\[2,3,4\\]"
   )
 })
+
+
+test_that("provider descriptors reject runtime state in attributes and language", {
+  providers <- list(
+    structure(list(path = "synthetic"), handle = new.env(parent = emptyenv())),
+    list(nested = structure(1L, callback = function() NULL)),
+    structure(list(), pointer = methods::new("externalptr")),
+    as.call(list(as.name("identity"), new.env(parent = emptyenv())))
+  )
+  for (provider in providers) {
+    expect_error(delarr_provider_seed(provider, c(2, 3)), "cannot contain functions")
+  }
+
+  data <- matrix(seq_len(6), 2, 3)
+  attr(data, "provenance") <- list(version = 1L, label = "synthetic")
+  restored <- unserialize(serialize(delarr_provider_seed(data, c(2, 3)), NULL))
+  expect_identical(attr(restored$provider, "provenance"), attr(data, "provenance"))
+  expect_equal(pull_seed(restored, c(2L, 1L), c(3L, 1L)),
+               data[c(2L, 1L), c(3L, 1L), drop = FALSE])
+})
+
+test_that("provider dimensions reject lossy integer coercion", {
+  invalid <- list(c(2.9, 3), c(-0.5, 3), c(Inf, 3), c(NA_real_, 3),
+                  c(.Machine$integer.max + 1, 3), c("2", "3"),
+                  c(TRUE, FALSE), c(2 + 1i, 3))
+  for (dims in invalid) {
+    expect_error(delarr_provider_seed(list(), dims), "dims must be an integer vector")
+  }
+  expect_identical(dim(delarr_provider_seed(list(), c(2, 3))), c(2L, 3L))
+  expect_identical(dim(delarr_provider_seed(list(), c(0L, 3L))), c(0L, 3L))
+})
